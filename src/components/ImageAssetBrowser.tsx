@@ -50,12 +50,12 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-6 backdrop-blur">
-      <div className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-950/95 shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-slate-800 px-8 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 p-6 backdrop-blur">
+      <div className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60">
+        <div className="flex items-center justify-between border-b border-border/70 px-8 py-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-300/80">Image Library</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">Manage your project visuals</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-accent/70">Image Library</p>
+            <h2 className="mt-1 text-xl font-semibold text-text-primary">Manage your project visuals</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -66,7 +66,7 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
                 }
               }}
               disabled={selectedAssets.length !== 1}
-              className="rounded-full border border-slate-700/70 px-4 py-2 text-xs font-semibold text-slate-300 transition disabled:cursor-not-allowed disabled:opacity-50 hover:border-emerald-500 hover:text-emerald-200"
+              className="rounded-full border border-border/70 px-4 py-2 text-xs font-semibold text-text-secondary transition disabled:cursor-not-allowed disabled:opacity-50 hover:border-accent hover:text-accent/80"
             >
               Locate usage
             </button>
@@ -78,14 +78,14 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
             >
               Delete selected
             </button>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-950 transition hover:bg-emerald-400">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-accent px-4 py-2 text-xs font-semibold text-accent-contrast transition hover:bg-accent-strong">
               <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
               Add images
             </label>
             <button
               type="button"
               onClick={clearStateAndClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 text-slate-300 transition hover:border-slate-500 hover:text-white"
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-text-primary"
               aria-label="Close image library"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -101,9 +101,9 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
         <div className="flex flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto px-8 py-6">
             {assets.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-slate-700/70 bg-slate-900/50 p-12 text-center">
-                <p className="text-lg font-semibold text-slate-200">No images yet</p>
-                <p className="mt-2 max-w-md text-sm text-slate-400">
+              <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface-muted/50 p-12 text-center">
+                <p className="text-lg font-semibold text-text-secondary">No images yet</p>
+                <p className="mt-2 max-w-md text-sm text-text-muted">
                   Use the "Add images" button to import concept art, icons, or reference boards for this project.
                 </p>
               </div>
@@ -115,13 +115,13 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
                     <div
                       key={asset.id}
                       className={`group relative overflow-hidden rounded-2xl border transition ${
-                        selected ? 'border-emerald-500/70' : 'border-slate-800/80'
+                        selected ? 'border-accent/70' : 'border-border/80'
                       }`}
                     >
                       <button
                         type="button"
                         onClick={() => setPreviewAssetId(asset.id)}
-                        className="relative block h-40 w-full overflow-hidden bg-slate-900/80"
+                        className="relative block h-40 w-full overflow-hidden bg-surface-muted/80"
                       >
                         <img
                           src={asset.url}
@@ -129,8 +129,8 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
                           className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                         />
                       </button>
-                      <div className="flex items-center justify-between gap-2 border-t border-slate-800/80 bg-slate-900/80 px-3 py-3">
-                        <p className="truncate text-xs font-semibold text-slate-200" title={asset.name}>
+                      <div className="flex items-center justify-between gap-2 border-t border-border/80 bg-surface-muted/80 px-3 py-3">
+                        <p className="truncate text-xs font-semibold text-text-secondary" title={asset.name}>
                           {asset.name}
                         </p>
                         <button
@@ -138,8 +138,8 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
                           onClick={() => toggleSelected(asset.id)}
                           className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold transition ${
                             selected
-                              ? 'border-emerald-500/70 bg-emerald-500/20 text-emerald-200'
-                              : 'border-slate-700/70 text-slate-300 hover:border-emerald-500 hover:text-emerald-200'
+                              ? 'border-accent/70 bg-accent/20 text-accent/80'
+                              : 'border-border/70 text-text-secondary hover:border-accent hover:text-accent/80'
                           }`}
                         >
                           {selected ? '✓' : '+'}
@@ -152,18 +152,18 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
             )}
           </div>
 
-          <div className="hidden w-64 border-l border-slate-800/80 bg-slate-950/90 p-6 lg:block">
-            <h3 className="text-sm font-semibold text-slate-200">Preview</h3>
+          <div className="hidden w-64 border-l border-border/80 bg-surface-elevated/90 p-6 lg:block">
+            <h3 className="text-sm font-semibold text-text-secondary">Preview</h3>
             {previewAsset ? (
               <div className="mt-4 space-y-3">
-                <div className="overflow-hidden rounded-xl border border-slate-800/80">
+                <div className="overflow-hidden rounded-xl border border-border/80">
                   <img src={previewAsset.url} alt={previewAsset.name} className="w-full" />
                 </div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Title</p>
-                <p className="text-sm font-semibold text-white">{previewAsset.name}</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-text-muted">Title</p>
+                <p className="text-sm font-semibold text-text-primary">{previewAsset.name}</p>
               </div>
             ) : (
-              <p className="mt-4 text-xs text-slate-500">Select an asset to see a larger preview.</p>
+              <p className="mt-4 text-xs text-text-muted">Select an asset to see a larger preview.</p>
             )}
           </div>
         </div>

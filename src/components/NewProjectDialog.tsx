@@ -77,17 +77,17 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur">
-      <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-950/95 shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-slate-800 px-8 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 p-4 backdrop-blur">
+      <div className="w-full max-w-3xl rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60">
+        <div className="flex items-center justify-between border-b border-border/70 px-8 py-6">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-emerald-300/80">New Project</p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Create a tabletop adventure workspace</h2>
+            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-accent/70">New Project</p>
+            <h2 className="mt-2 text-2xl font-semibold text-text-primary">Create a tabletop adventure workspace</h2>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-700/70 text-slate-300 transition hover:border-slate-500 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-text-primary"
             aria-label="Close"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
@@ -101,30 +101,30 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
 
         <form onSubmit={handleSubmit} className="grid gap-8 px-8 py-6 sm:grid-cols-2">
           <div className="space-y-4">
-            <label className="block text-sm font-semibold text-slate-200">
+            <label className="block text-sm font-semibold text-text-secondary">
               Project name
               <input
                 value={formState.name}
                 onChange={(event) => setFormState((state) => ({ ...state, name: event.target.value }))}
                 placeholder="e.g. Clockwork Isles Campaign"
-                className="mt-2 w-full rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2 text-base text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                className="mt-2 w-full rounded-xl border border-border bg-surface-muted/60 px-4 py-2 text-base text-text-primary outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
                 required
               />
             </label>
 
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-4">
-              <p className="text-sm font-semibold text-slate-200">First item</p>
-              <p className="mt-1 text-xs text-slate-400">
+            <div className="rounded-2xl border border-border/80 bg-surface-muted/40 p-4">
+              <p className="text-sm font-semibold text-text-secondary">First item</p>
+              <p className="mt-1 text-xs text-text-muted">
                 Give your project a head start with the first board, deck, or poster.
               </p>
 
-              <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+              <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">
                 Item title
                 <input
                   value={formState.itemName}
                   onChange={(event) => setFormState((state) => ({ ...state, itemName: event.target.value }))}
                   placeholder="e.g. Encounter Deck"
-                  className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                  className="mt-2 w-full rounded-lg border border-border bg-surface-muted/60 px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
                 />
               </label>
             </div>
@@ -146,18 +146,18 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
                   }
                   className={`rounded-2xl border px-4 py-4 text-left transition ${
                     formState.itemType === type.id
-                      ? 'border-emerald-500/70 bg-emerald-500/10 text-emerald-100'
-                      : 'border-slate-800/80 bg-slate-950/50 text-slate-300 hover:border-slate-600 hover:bg-slate-900'
+                      ? 'border-accent/70 bg-accent/10 text-text-primary'
+                      : 'border-border/80 bg-surface/50 text-text-secondary hover:border-border/60 hover:bg-surface-muted'
                   }`}
                 >
-                  <p className="text-sm font-semibold">{type.name}</p>
-                  <p className="mt-1 text-xs text-slate-400">{type.description}</p>
+                  <p className="text-sm font-semibold text-text-primary">{type.name}</p>
+                  <p className="mt-1 text-xs text-text-muted">{type.description}</p>
                 </button>
               ))}
             </div>
 
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Format</p>
+            <div className="rounded-2xl border border-border/80 bg-surface/60 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Format</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {typeDefinition.variants.map((variant) => (
                   <button
@@ -166,8 +166,8 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
                     onClick={() => setFormState((state) => ({ ...state, variant }))}
                     className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
                       formState.variant === variant
-                        ? 'bg-emerald-500 text-slate-950'
-                        : 'bg-slate-900 text-slate-300 hover:bg-slate-800'
+                        ? 'bg-accent text-accent-contrast'
+                        : 'bg-surface-muted text-text-secondary hover:bg-surface-muted/80'
                     }`}
                   >
                     {variant}
@@ -176,32 +176,32 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
               </div>
 
               {showCustomField && (
-                <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
+                <label className="mt-4 block text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">
                   Custom details
                   <input
                     value={formState.customDetails}
                     onChange={(event) => setFormState((state) => ({ ...state, customDetails: event.target.value }))}
                     placeholder="Add size or notes"
-                    className="mt-2 w-full rounded-lg border border-slate-800 bg-slate-900/60 px-3 py-2 text-sm text-white outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/40"
+                    className="mt-2 w-full rounded-lg border border-border bg-surface-muted/60 px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/40"
                   />
                 </label>
               )}
             </div>
           </div>
 
-          <div className="sm:col-span-2 flex flex-col gap-3 border-t border-slate-800/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-slate-400">You can add more items or assets after your project is created.</p>
+          <div className="sm:col-span-2 flex flex-col gap-3 border-t border-border/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-text-muted">You can add more items or assets after your project is created.</p>
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-full border border-slate-700/70 px-5 py-2 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                className="rounded-full border border-border/70 px-5 py-2 text-sm font-semibold text-text-secondary transition hover:border-accent hover:text-text-primary"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:bg-emerald-400"
+                className="rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
               >
                 Create project
               </button>
