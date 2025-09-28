@@ -77,7 +77,7 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 p-6 backdrop-blur">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/80 p-6">
       <div className="flex h-[80vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between border-b border-border/70 px-8 py-6">
           <div>
