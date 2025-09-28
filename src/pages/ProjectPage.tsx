@@ -21,6 +21,7 @@ function ProjectPage() {
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchPanelOpen, setSearchPanelOpen] = useState(false);
   const [isItemDialogOpen, setItemDialogOpen] = useState(false);
   const [isAssetBrowserOpen, setAssetBrowserOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
@@ -59,6 +60,27 @@ function ProjectPage() {
   const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(event.target.value);
   }, []);
+
+  const handleOpenSearchPanel = useCallback(() => setSearchPanelOpen(true), []);
+  const handleCloseSearchPanel = useCallback(() => {
+    setSearchPanelOpen(false);
+    setSearchQuery('');
+  }, []);
+
+  useEffect(() => {
+    if (!isSearchPanelOpen) {
+      return undefined;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        handleCloseSearchPanel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleCloseSearchPanel, isSearchPanelOpen]);
 
   const handleOpenItemDialog = useCallback(() => setItemDialogOpen(true), []);
   const handleCloseItemDialog = useCallback(() => setItemDialogOpen(false), []);
@@ -133,6 +155,29 @@ function ProjectPage() {
     [project],
   );
 
+  const handleSearchSelectItem = useCallback(
+    (itemId: string) => {
+      if (!project) {
+        return;
+      }
+
+      const item = project.items.find((candidate) => candidate.id === itemId);
+      if (item) {
+        setStatusMessage(`Coming soon: locate "${item.name}" within your layouts.`);
+      }
+      handleCloseSearchPanel();
+    },
+    [handleCloseSearchPanel, project],
+  );
+
+  const handleSearchSelectAsset = useCallback(
+    (assetId: string) => {
+      handleLocateAsset(assetId);
+      handleCloseSearchPanel();
+    },
+    [handleCloseSearchPanel, handleLocateAsset],
+  );
+
   const filteredItems = useMemo(() => {
     if (!project) {
       return [];
@@ -146,15 +191,41 @@ function ProjectPage() {
     return project.items.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
   }, [deferredSearchQuery, project]);
 
+  const filteredAssets = useMemo(() => {
+    if (!project) {
+      return [];
+    }
+
+    const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
+    if (normalizedQuery.length === 0) {
+      return project.assets;
+    }
+
+    return project.assets.filter((asset) => asset.name.toLowerCase().includes(normalizedQuery));
+  }, [deferredSearchQuery, project]);
+
+  const hasSearchQuery = deferredSearchQuery.trim().length > 0;
+
   const asideDynamicClasses = useMemo(
     () =>
-      `relative flex w-full flex-col rounded-3xl border border-border bg-surface-muted/60 transition-all duration-300 lg:w-auto ${
-        isCollapsed ? 'lg:max-w-[5.5rem] lg:p-4' : 'lg:max-w-xs lg:p-6'
+      `flex h-full flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
+        isCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'
       }`,
     [isCollapsed],
   );
 
-  const asideContentOpacityClass = isCollapsed ? 'opacity-0 pointer-events-none lg:hidden' : 'opacity-100';
+  const expandedContentClasses = useMemo(
+    () =>
+      isCollapsed
+        ? 'hidden'
+        : 'flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-6',
+    [isCollapsed],
+  );
+
+  const collapsedContentClasses = useMemo(
+    () => (isCollapsed ? 'flex flex-1 flex-col items-center gap-8 px-2 py-8' : 'hidden'),
+    [isCollapsed],
+  );
 
   const assetBrowserProps = useMemo(() => {
     if (!project) {
@@ -197,77 +268,80 @@ function ProjectPage() {
   const assetCount = project.assets.length;
 
   return (
-    <div className="flex flex-col gap-6 lg:flex-row">
+    <div className="flex h-full w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
-        <button
-          type="button"
-          onClick={handleToggleCollapsed}
-          className="absolute right-4 top-4 hidden h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80 lg:flex"
-          aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
-        >
-          <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} aria-hidden="true">
-            <path
-              fill="currentColor"
-              d="M10.5 6.5a.75.75 0 10-1.06 1.06L12.88 11l-3.44 3.44a.75.75 0 101.06 1.06l4-4a.75.75 0 000-1.06z"
-            />
-          </svg>
-        </button>
-
-        <div className={`flex-1 space-y-6 transition-opacity duration-200 ${asideContentOpacityClass}`}>
-          <div className="flex flex-col gap-2 pr-10">
-            {isEditingTitle ? (
-              <input
-                value={titleValue}
-                onChange={(event) => setTitleValue(event.target.value)}
-                onBlur={handleRename}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
-                    handleRename();
-                  } else if (event.key === 'Escape') {
-                    setTitleValue(project.name);
-                    setEditingTitle(false);
-                  }
-                }}
-                autoFocus
-                className="rounded-xl border border-accent/70 bg-surface/80 px-4 py-2 text-lg font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
+        <div className="flex items-start justify-between gap-3 border-b border-border/80 px-4 py-4">
+          {!isCollapsed && (
+            <div className="flex flex-1 flex-col gap-1">
+              {isEditingTitle ? (
+                <input
+                  value={titleValue}
+                  onChange={(event) => setTitleValue(event.target.value)}
+                  onBlur={handleRename}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      handleRename();
+                    } else if (event.key === 'Escape') {
+                      setTitleValue(project.name);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="rounded-xl border border-accent/70 bg-surface/80 px-3 py-2 text-base font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartEditingTitle}
+                  className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
+                >
+                  {project.name}
+                </button>
+              )}
+              <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleCollapsed}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
+            aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
+          >
+            <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M10.5 6.5a.75.75 0 10-1.06 1.06L12.88 11l-3.44 3.44a.75.75 0 101.06 1.06l4-4a.75.75 0 000-1.06z"
               />
-            ) : (
-              <button
-                type="button"
-                onClick={handleStartEditingTitle}
-                className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
-              >
-                {project.name}
-              </button>
-            )}
-            <p className="text-xs uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
-          </div>
+            </svg>
+          </button>
+        </div>
 
+        <div className={expandedContentClasses}>
           <div className="space-y-4">
-            <label className="block text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">
-              Search project
-              <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-surface/70 px-3">
+            <button
+              type="button"
+              onClick={handleOpenSearchPanel}
+              className="flex w-full items-center justify-between rounded-xl border border-border/80 bg-surface/70 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+            >
+              <span className="flex items-center gap-2">
                 <svg viewBox="0 0 24 24" className="h-4 w-4 text-text-muted" aria-hidden="true">
                   <path
                     fill="currentColor"
                     d="M10 4a6 6 0 014.62 9.8l4.29 4.29a.75.75 0 11-1.06 1.06l-4.29-4.29A6 6 0 1110 4zm0 1.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"
                   />
                 </svg>
-                <input
-                  value={searchQuery}
-                  onChange={handleSearchChange}
-                  placeholder="Search items, assets, notes..."
-                  className="w-full bg-transparent py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                  type="search"
-                />
-              </div>
-            </label>
+                Search project
+              </span>
+              <span className="rounded-full border border-border/60 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
+                Search
+              </span>
+            </button>
 
             <button
               type="button"
               onClick={handleOpenAssetBrowser}
-              className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface/60 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+              className="flex w-full items-center justify-between rounded-xl border border-border/80 bg-surface/60 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
             >
               <span>Image Library</span>
               <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent/80">{assetCount}</span>
@@ -288,12 +362,12 @@ function ProjectPage() {
             </div>
 
             <div className="space-y-3">
-              {filteredItems.length === 0 ? (
+              {project.items.length === 0 ? (
                 <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-4 py-6 text-center text-xs text-text-muted">
-                  No items match your search yet.
+                  No items yet. Add your first board, card deck, or poster using the button above.
                 </p>
               ) : (
-                filteredItems.map((item) => (
+                project.items.map((item) => (
                   <div
                     key={item.id}
                     className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-4 text-sm text-text-secondary shadow-lg shadow-black/20"
@@ -309,7 +383,7 @@ function ProjectPage() {
           </div>
         </div>
 
-        <div className={`hidden flex-1 flex-col items-center gap-8 py-12 ${isCollapsed ? 'lg:flex' : 'lg:hidden'}`}>
+        <div className={collapsedContentClasses}>
           <button
             type="button"
             onClick={handleStartEditingTitle}
@@ -317,6 +391,14 @@ function ProjectPage() {
             title="Rename project"
           >
             ✎
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenSearchPanel}
+            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
+            title="Search project"
+          >
+            🔍
           </button>
           <button
             type="button"
@@ -337,7 +419,7 @@ function ProjectPage() {
         </div>
       </aside>
 
-      <section className="flex-1 space-y-6">
+      <section className="flex-1 overflow-y-auto bg-background px-6 py-10 lg:px-10">
         {statusMessage && (
           <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
         )}
@@ -397,6 +479,99 @@ function ProjectPage() {
       </section>
 
       <NewItemDialog open={isItemDialogOpen} onClose={handleCloseItemDialog} onSubmit={handleAddItem} />
+
+      {isSearchPanelOpen && (
+        <div
+          className="fixed inset-0 z-40 flex items-start justify-end bg-black/40 backdrop-blur-sm"
+          onClick={handleCloseSearchPanel}
+          role="presentation"
+        >
+          <div
+            className="m-4 w-full max-w-xl rounded-3xl border border-border bg-surface px-6 py-6 shadow-2xl shadow-black/40"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold text-text-primary">Search project</h2>
+                <p className="mt-1 text-sm text-text-muted">Find items and assets without leaving your workspace.</p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCloseSearchPanel}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
+                aria-label="Close search"
+              >
+                ✕
+              </button>
+            </div>
+
+            <label className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 text-text-muted" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M10 4a6 6 0 014.62 9.8l4.29 4.29a.75.75 0 11-1.06 1.06l-4.29-4.29A6 6 0 1110 4zm0 1.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"
+                />
+              </svg>
+              <input
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Search items or assets..."
+                className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+                type="search"
+                autoFocus
+              />
+            </label>
+
+            <div className="mt-8 grid gap-8 md:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
+                <div className="mt-3 space-y-2">
+                  {filteredItems.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
+                      {hasSearchQuery ? 'No items match your search yet.' : 'Start typing to search the items in this project.'}
+                    </p>
+                  ) : (
+                    filteredItems.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => handleSearchSelectItem(item.id)}
+                        className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+                      >
+                        <span className="font-semibold text-text-primary">{item.name}</span>
+                        <span className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Assets</p>
+                <div className="mt-3 space-y-2">
+                  {filteredAssets.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
+                      {hasSearchQuery ? 'No assets match your search yet.' : 'Search to quickly locate artwork and references.'}
+                    </p>
+                  ) : (
+                    filteredAssets.map((asset) => (
+                      <button
+                        key={asset.id}
+                        type="button"
+                        onClick={() => handleSearchSelectAsset(asset.id)}
+                        className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+                      >
+                        <span className="font-semibold text-text-primary">{asset.name}</span>
+                        <span className="text-xs text-text-muted">Library asset</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ImageAssetBrowser {...assetBrowserProps} />
     </div>
