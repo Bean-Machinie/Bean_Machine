@@ -1,3 +1,5 @@
+import { memo, useCallback, useMemo } from 'react';
+
 import { Project } from '../context/ProjectContext';
 
 interface ProjectOverviewPanelProps {
@@ -5,6 +7,63 @@ interface ProjectOverviewPanelProps {
   onOpenProject: (projectId: string) => void;
   onCreateProject: () => void;
 }
+
+interface ProjectCardProps {
+  project: Project;
+  onOpenProject: (projectId: string) => void;
+}
+
+const ProjectCard = memo(({ project, onOpenProject }: ProjectCardProps) => {
+  const { previewItems, remainingItemCount } = useMemo(() => {
+    const previewItems = project.items.slice(0, 3);
+    const remainingItemCount = Math.max(project.items.length - previewItems.length, 0);
+
+    return { previewItems, remainingItemCount };
+  }, [project.items]);
+
+  const handleOpen = useCallback(() => onOpenProject(project.id), [onOpenProject, project.id]);
+
+  return (
+    <button
+      type="button"
+      onClick={handleOpen}
+      className="group flex flex-col rounded-2xl border border-border/80 bg-surface/60 p-6 text-left shadow-lg shadow-black/30 transition will-change-transform hover:-translate-y-1 hover:border-accent/70 hover:bg-surface-muted/80 hover:shadow-accent/30"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.25em] text-text-muted">Project</p>
+          <h3 className="mt-2 text-xl font-semibold text-text-primary transition group-hover:text-accent/80">{project.name}</h3>
+        </div>
+        <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent/80 transition group-hover:bg-accent-strong/20">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5 transform transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5">
+            <path
+              fill="currentColor"
+              d="M8.75 7.25a.75.75 0 011.5 0v6.69l6.22-6.22a.75.75 0 011.06 1.06l-6.22 6.22h6.69a.75.75 0 010 1.5h-8.5a.75.75 0 01-.75-.75z"
+            />
+          </svg>
+        </span>
+      </div>
+      <p className="mt-4 text-sm text-text-muted">
+        {project.items.length > 0
+          ? `${project.items.length} item${project.items.length === 1 ? '' : 's'} ready to refine`
+          : 'No items added yet — jump in to get started.'}
+      </p>
+      {previewItems.length > 0 && (
+        <ul className="mt-4 space-y-2 text-sm text-text-secondary">
+          {previewItems.map((item) => (
+            <li key={item.id} className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-highlight" aria-hidden />
+              <span>{item.name}</span>
+            </li>
+          ))}
+          {remainingItemCount > 0 && <li className="text-xs uppercase tracking-widest text-text-muted">+{remainingItemCount} more</li>}
+        </ul>
+      )}
+    </button>
+  );
+});
+
+ProjectCard.displayName = 'ProjectCard';
 
 function ProjectOverviewPanel({ projects, onOpenProject, onCreateProject }: ProjectOverviewPanelProps) {
   return (
@@ -45,59 +104,13 @@ function ProjectOverviewPanel({ projects, onOpenProject, onCreateProject }: Proj
             </button>
           </div>
         ) : (
-          projects.map((project) => (
-            <button
-              key={project.id}
-              type="button"
-              onClick={() => onOpenProject(project.id)}
-              className="group flex flex-col rounded-2xl border border-border/80 bg-surface/60 p-6 text-left shadow-lg shadow-black/30 transition hover:-translate-y-1 hover:border-accent/70 hover:bg-surface-muted/80 hover:shadow-accent/30"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.25em] text-text-muted">Project</p>
-                  <h3 className="mt-2 text-xl font-semibold text-text-primary transition group-hover:text-accent/80">
-                    {project.name}
-                  </h3>
-                </div>
-                <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent/10 text-accent/80 transition group-hover:bg-accent-strong/20">
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 24 24"
-                    className="h-5 w-5 transform transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-                  >
-                    <path
-                      fill="currentColor"
-                      d="M8.75 7.25a.75.75 0 011.5 0v6.69l6.22-6.22a.75.75 0 011.06 1.06l-6.22 6.22h6.69a.75.75 0 010 1.5h-8.5a.75.75 0 01-.75-.75z"
-                    />
-                  </svg>
-                </span>
-              </div>
-              <p className="mt-4 text-sm text-text-muted">
-                {project.items.length > 0
-                  ? `${project.items.length} item${project.items.length === 1 ? '' : 's'} ready to refine`
-                  : 'No items added yet — jump in to get started.'}
-              </p>
-              {project.items.length > 0 && (
-                <ul className="mt-4 space-y-2 text-sm text-text-secondary">
-                  {project.items.slice(0, 3).map((item) => (
-                    <li key={item.id} className="flex items-center gap-2">
-                      <span className="h-1.5 w-1.5 rounded-full bg-highlight" aria-hidden />
-                      <span>{item.name}</span>
-                    </li>
-                  ))}
-                  {project.items.length > 3 && (
-                    <li className="text-xs uppercase tracking-widest text-text-muted">
-                      +{project.items.length - 3} more
-                    </li>
-                  )}
-                </ul>
-              )}
-            </button>
-          ))
+          projects.map((project) => <ProjectCard key={project.id} project={project} onOpenProject={onOpenProject} />)
         )}
       </div>
     </section>
   );
 }
 
-export default ProjectOverviewPanel;
+ProjectOverviewPanel.displayName = 'ProjectOverviewPanel';
+
+export default memo(ProjectOverviewPanel);

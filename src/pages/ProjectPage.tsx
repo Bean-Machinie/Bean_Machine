@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import ImageAssetBrowser from '../components/ImageAssetBrowser';
 import NewItemDialog from '../components/NewItemDialog';
 import { AssetInput, ItemInput, Project } from '../context/ProjectContext';
 import { findProject, useProjects } from '../context/ProjectContext';
+
+const emptyAssetBrowserHandlers = Object.freeze({
+  onClose: () => undefined,
+  onAddAssets: (_assets: AssetInput[]) => undefined,
+  onRemoveAssets: (_assetIds: string[]) => undefined,
+  onLocateAsset: (_assetId: string) => undefined,
+});
 
 function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -31,6 +38,8 @@ function ProjectPage() {
     }
   }, [project]);
 
+  const deferredSearchQuery = useDeferredValue(searchQuery);
+
   useEffect(() => {
     if (statusMessage) {
       const timeout = setTimeout(() => setStatusMessage(null), 4000);
@@ -38,6 +47,133 @@ function ProjectPage() {
     }
     return undefined;
   }, [statusMessage]);
+
+  const handleToggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => !prev);
+  }, []);
+
+  const handleStartEditingTitle = useCallback(() => {
+    setEditingTitle(true);
+  }, []);
+
+  const handleSearchChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(event.target.value);
+  }, []);
+
+  const handleOpenItemDialog = useCallback(() => setItemDialogOpen(true), []);
+  const handleCloseItemDialog = useCallback(() => setItemDialogOpen(false), []);
+
+  const handleOpenAssetBrowser = useCallback(() => setAssetBrowserOpen(true), []);
+  const handleCloseAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
+
+  const handleRename = useCallback(() => {
+    if (!project) {
+      return;
+    }
+
+    const trimmed = titleValue.trim();
+    if (!trimmed || trimmed === project.name) {
+      setTitleValue(project.name);
+      setEditingTitle(false);
+      return;
+    }
+
+    updateProjectName(project.id, trimmed);
+    setEditingTitle(false);
+    setStatusMessage('Project name updated');
+  }, [project, titleValue, updateProjectName]);
+
+  const handleAddItem = useCallback(
+    (item: ItemInput) => {
+      if (!project) {
+        return;
+      }
+
+      addItemToProject(project.id, item);
+      setStatusMessage(`${item.name} added to ${project.name}`);
+    },
+    [addItemToProject, project],
+  );
+
+  const handleAddAssets = useCallback(
+    (assets: AssetInput[]) => {
+      if (!project || assets.length === 0) {
+        return;
+      }
+
+      addAssetsToProject(project.id, assets);
+      setStatusMessage(`${assets.length} asset${assets.length === 1 ? '' : 's'} added to the library`);
+    },
+    [addAssetsToProject, project],
+  );
+
+  const handleRemoveAssets = useCallback(
+    (assetIds: string[]) => {
+      if (!project || assetIds.length === 0) {
+        return;
+      }
+
+      removeAssetsFromProject(project.id, assetIds);
+      setStatusMessage(`${assetIds.length} asset${assetIds.length === 1 ? '' : 's'} deleted`);
+    },
+    [project, removeAssetsFromProject],
+  );
+
+  const handleLocateAsset = useCallback(
+    (assetId: string) => {
+      if (!project) {
+        return;
+      }
+
+      const asset = project.assets.find((candidate) => candidate.id === assetId);
+      if (asset) {
+        setStatusMessage(`Coming soon: locate "${asset.name}" within your layouts.`);
+      }
+    },
+    [project],
+  );
+
+  const filteredItems = useMemo(() => {
+    if (!project) {
+      return [];
+    }
+
+    const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
+    if (normalizedQuery.length === 0) {
+      return project.items;
+    }
+
+    return project.items.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
+  }, [deferredSearchQuery, project]);
+
+  const asideDynamicClasses = useMemo(
+    () =>
+      `relative flex w-full flex-col rounded-3xl border border-border bg-surface-muted/60 transition-all duration-300 lg:w-auto ${
+        isCollapsed ? 'lg:max-w-[5.5rem] lg:p-4' : 'lg:max-w-xs lg:p-6'
+      }`,
+    [isCollapsed],
+  );
+
+  const asideContentOpacityClass = isCollapsed ? 'opacity-0 pointer-events-none lg:hidden' : 'opacity-100';
+
+  const assetBrowserProps = useMemo(() => {
+    if (!project) {
+      return {
+        open: false,
+        assets: [],
+        ...emptyAssetBrowserHandlers,
+      };
+    }
+
+    return {
+      open: isAssetBrowserOpen,
+      assets: project.assets,
+      onClose: handleCloseAssetBrowser,
+      onAddAssets: handleAddAssets,
+      onRemoveAssets: handleRemoveAssets,
+      onLocateAsset: handleLocateAsset,
+    };
+  }, [handleAddAssets, handleCloseAssetBrowser, handleLocateAsset, handleRemoveAssets, isAssetBrowserOpen, project]);
 
   if (!project) {
     return (
@@ -58,58 +194,14 @@ function ProjectPage() {
     );
   }
 
-  const filteredItems = project.items.filter((item) =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  const handleRename = () => {
-    const trimmed = titleValue.trim();
-    if (!trimmed || trimmed === project.name) {
-      setTitleValue(project.name);
-      setEditingTitle(false);
-      return;
-    }
-
-    updateProjectName(project.id, trimmed);
-    setEditingTitle(false);
-    setStatusMessage('Project name updated');
-  };
-
-  const handleAddItem = (item: ItemInput) => {
-    addItemToProject(project.id, item);
-    setStatusMessage(`${item.name} added to ${project.name}`);
-  };
-
-  const handleAddAssets = (assets: AssetInput[]) => {
-    addAssetsToProject(project.id, assets);
-    setStatusMessage(`${assets.length} asset${assets.length === 1 ? '' : 's'} added to the library`);
-  };
-
-  const handleRemoveAssets = (assetIds: string[]) => {
-    if (assetIds.length === 0) {
-      return;
-    }
-    removeAssetsFromProject(project.id, assetIds);
-    setStatusMessage(`${assetIds.length} asset${assetIds.length === 1 ? '' : 's'} deleted`);
-  };
-
-  const handleLocateAsset = (assetId: string) => {
-    const asset = project.assets.find((candidate) => candidate.id === assetId);
-    if (asset) {
-      setStatusMessage(`Coming soon: locate "${asset.name}" within your layouts.`);
-    }
-  };
+  const assetCount = project.assets.length;
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      <aside
-        className={`relative flex w-full flex-col rounded-3xl border border-border bg-surface-muted/60 transition-all duration-300 lg:w-auto ${
-          isCollapsed ? 'lg:max-w-[5.5rem] lg:p-4' : 'lg:max-w-xs lg:p-6'
-        }`}
-      >
+      <aside className={asideDynamicClasses}>
         <button
           type="button"
-          onClick={() => setCollapsed((prev) => !prev)}
+          onClick={handleToggleCollapsed}
           className="absolute right-4 top-4 hidden h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80 lg:flex"
           aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
         >
@@ -121,7 +213,7 @@ function ProjectPage() {
           </svg>
         </button>
 
-        <div className={`flex-1 space-y-6 transition-opacity duration-200 ${isCollapsed ? 'opacity-0 pointer-events-none lg:hidden' : 'opacity-100'}`}>
+        <div className={`flex-1 space-y-6 transition-opacity duration-200 ${asideContentOpacityClass}`}>
           <div className="flex flex-col gap-2 pr-10">
             {isEditingTitle ? (
               <input
@@ -143,7 +235,7 @@ function ProjectPage() {
             ) : (
               <button
                 type="button"
-                onClick={() => setEditingTitle(true)}
+                onClick={handleStartEditingTitle}
                 className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
               >
                 {project.name}
@@ -164,7 +256,7 @@ function ProjectPage() {
                 </svg>
                 <input
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={handleSearchChange}
                   placeholder="Search items, assets, notes..."
                   className="w-full bg-transparent py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
                   type="search"
@@ -174,13 +266,11 @@ function ProjectPage() {
 
             <button
               type="button"
-              onClick={() => setAssetBrowserOpen(true)}
+              onClick={handleOpenAssetBrowser}
               className="flex w-full items-center justify-between rounded-2xl border border-border/80 bg-surface/60 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
             >
               <span>Image Library</span>
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent/80">
-                {project.assets.length}
-              </span>
+              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent/80">{assetCount}</span>
             </button>
           </div>
 
@@ -189,7 +279,7 @@ function ProjectPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
               <button
                 type="button"
-                onClick={() => setItemDialogOpen(true)}
+                onClick={handleOpenItemDialog}
                 className="flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-lg font-semibold text-text-secondary transition hover:border-accent hover:text-accent/80"
                 aria-label="Add item"
               >
@@ -211,9 +301,7 @@ function ProjectPage() {
                     <p className="font-semibold text-text-primary">{item.name}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
                     <p className="mt-2 text-xs text-text-muted">{item.variant}</p>
-                    {item.customDetails && (
-                      <p className="mt-2 text-xs text-text-muted">{item.customDetails}</p>
-                    )}
+                    {item.customDetails && <p className="mt-2 text-xs text-text-muted">{item.customDetails}</p>}
                   </div>
                 ))
               )}
@@ -224,7 +312,7 @@ function ProjectPage() {
         <div className={`hidden flex-1 flex-col items-center gap-8 py-12 ${isCollapsed ? 'lg:flex' : 'lg:hidden'}`}>
           <button
             type="button"
-            onClick={() => setEditingTitle(true)}
+            onClick={handleStartEditingTitle}
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
             title="Rename project"
           >
@@ -232,7 +320,7 @@ function ProjectPage() {
           </button>
           <button
             type="button"
-            onClick={() => setAssetBrowserOpen(true)}
+            onClick={handleOpenAssetBrowser}
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
             title="Image library"
           >
@@ -240,7 +328,7 @@ function ProjectPage() {
           </button>
           <button
             type="button"
-            onClick={() => setItemDialogOpen(true)}
+            onClick={handleOpenItemDialog}
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
             title="Add item"
           >
@@ -251,9 +339,7 @@ function ProjectPage() {
 
       <section className="flex-1 space-y-6">
         {statusMessage && (
-          <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">
-            {statusMessage}
-          </div>
+          <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
         )}
 
         <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
@@ -279,7 +365,7 @@ function ProjectPage() {
                 </p>
                 <button
                   type="button"
-                  onClick={() => setItemDialogOpen(true)}
+                  onClick={handleOpenItemDialog}
                   className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
                 >
                   Add an item
@@ -310,16 +396,9 @@ function ProjectPage() {
         </div>
       </section>
 
-      <NewItemDialog open={isItemDialogOpen} onClose={() => setItemDialogOpen(false)} onSubmit={handleAddItem} />
+      <NewItemDialog open={isItemDialogOpen} onClose={handleCloseItemDialog} onSubmit={handleAddItem} />
 
-      <ImageAssetBrowser
-        open={isAssetBrowserOpen}
-        assets={project.assets}
-        onClose={() => setAssetBrowserOpen(false)}
-        onAddAssets={handleAddAssets}
-        onRemoveAssets={handleRemoveAssets}
-        onLocateAsset={handleLocateAsset}
-      />
+      <ImageAssetBrowser {...assetBrowserProps} />
     </div>
   );
 }
