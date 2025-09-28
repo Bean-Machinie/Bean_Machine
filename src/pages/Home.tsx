@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import ProjectOverviewPanel from '../components/ProjectOverviewPanel';
@@ -11,15 +11,33 @@ function Home() {
   const { projects, createProject } = useProjects();
   const [isDialogOpen, setDialogOpen] = useState(false);
 
-  const handleCreateProject = ({ name, initialItem }: { name: string; initialItem?: ItemInput }) => {
-    const project = createProject({ name, initialItem });
-    setDialogOpen(false);
-    navigate(`/projects/${project.id}`);
-  };
+  const handleCreateProject = useCallback(
+    ({ name, initialItem }: { name: string; initialItem?: ItemInput }) => {
+      const project = createProject({ name, initialItem });
+      setDialogOpen(false);
+      navigate(`/projects/${project.id}`);
+    },
+    [createProject, navigate],
+  );
 
-  const handleOpenProject = (projectId: string) => {
-    navigate(`/projects/${projectId}`);
-  };
+  const handleOpenProject = useCallback(
+    (projectId: string) => {
+      navigate(`/projects/${projectId}`);
+    },
+    [navigate],
+  );
+
+  const handleOpenDialog = useCallback(() => setDialogOpen(true), []);
+  const handleCloseDialog = useCallback(() => setDialogOpen(false), []);
+
+  const dialogProps = useMemo(
+    () => ({
+      open: isDialogOpen,
+      onClose: handleCloseDialog,
+      onCreate: handleCreateProject,
+    }),
+    [handleCloseDialog, handleCreateProject, isDialogOpen],
+  );
 
   return (
     <>
@@ -36,14 +54,10 @@ function Home() {
           </p>
         </div>
 
-        <ProjectOverviewPanel
-          projects={projects}
-          onOpenProject={handleOpenProject}
-          onCreateProject={() => setDialogOpen(true)}
-        />
+        <ProjectOverviewPanel projects={projects} onOpenProject={handleOpenProject} onCreateProject={handleOpenDialog} />
       </section>
 
-      <NewProjectDialog open={isDialogOpen} onClose={() => setDialogOpen(false)} onCreate={handleCreateProject} />
+      <NewProjectDialog {...dialogProps} />
     </>
   );
 }

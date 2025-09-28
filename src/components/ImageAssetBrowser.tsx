@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from 'react';
+import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 
 import { AssetInput, ProjectAsset } from '../context/ProjectContext';
 
@@ -33,17 +33,44 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
     event.target.value = '';
   };
 
-  const toggleSelected = (assetId: string) => {
-    setSelectedAssets((prev) =>
-      prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId],
-    );
-  };
+  const toggleSelected = useCallback((assetId: string) => {
+    setSelectedAssets((prev) => (prev.includes(assetId) ? prev.filter((id) => id !== assetId) : [...prev, assetId]));
+  }, []);
 
-  const clearStateAndClose = () => {
+  useEffect(() => {
+    if (selectedAssets.length === 0) {
+      return;
+    }
+
+    setSelectedAssets((prev) => {
+      const filtered = prev.filter((id) => assets.some((asset) => asset.id === id));
+      return filtered.length === prev.length ? prev : filtered;
+    });
+  }, [assets, selectedAssets.length]);
+
+  const clearStateAndClose = useCallback(() => {
     setSelectedAssets([]);
     setPreviewAssetId(null);
     onClose();
-  };
+  }, [onClose]);
+
+  const handleLocateSelected = useCallback(() => {
+    if (selectedAssets.length === 1) {
+      onLocateAsset(selectedAssets[0]);
+    }
+  }, [onLocateAsset, selectedAssets]);
+
+  const handleRemoveSelected = useCallback(() => {
+    if (selectedAssets.length > 0) {
+      onRemoveAssets(selectedAssets);
+    }
+  }, [onRemoveAssets, selectedAssets]);
+
+  const handlePreview = useCallback((assetId: string) => {
+    setPreviewAssetId(assetId);
+  }, []);
+
+  const selectedCount = selectedAssets.length;
 
   if (!open) {
     return null;
@@ -60,20 +87,16 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => {
-                if (selectedAssets.length === 1) {
-                  onLocateAsset(selectedAssets[0]);
-                }
-              }}
-              disabled={selectedAssets.length !== 1}
+              onClick={handleLocateSelected}
+              disabled={selectedCount !== 1}
               className="rounded-full border border-border/70 px-4 py-2 text-xs font-semibold text-text-secondary transition disabled:cursor-not-allowed disabled:opacity-50 hover:border-accent hover:text-accent/80"
             >
               Locate usage
             </button>
             <button
               type="button"
-              onClick={() => onRemoveAssets(selectedAssets)}
-              disabled={selectedAssets.length === 0}
+              onClick={handleRemoveSelected}
+              disabled={selectedCount === 0}
               className="rounded-full border border-rose-500/60 px-4 py-2 text-xs font-semibold text-rose-200 transition disabled:cursor-not-allowed disabled:opacity-50 hover:bg-rose-500/10"
             >
               Delete selected
@@ -120,13 +143,15 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
                     >
                       <button
                         type="button"
-                        onClick={() => setPreviewAssetId(asset.id)}
+                        onClick={() => handlePreview(asset.id)}
                         className="relative block h-40 w-full overflow-hidden bg-surface-muted/80"
                       >
                         <img
                           src={asset.url}
                           alt={asset.name}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover transition duration-300 will-change-transform group-hover:scale-105"
                         />
                       </button>
                       <div className="flex items-center justify-between gap-2 border-t border-border/80 bg-surface-muted/80 px-3 py-3">
