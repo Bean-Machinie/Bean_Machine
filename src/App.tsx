@@ -1,10 +1,13 @@
+import { Route, Routes } from 'react-router-dom';
+
 import Home from './pages/Home';
+import ProjectPage from './pages/ProjectPage';
 
 function App() {
   return (
     <div className="min-h-screen bg-slate-950 font-sans text-slate-100">
       <header className="border-b border-slate-800 bg-slate-900/70 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-col gap-2 px-6 py-6 text-center sm:flex-row sm:items-center sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-6 text-center sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-100 sm:text-3xl">
             Tabletop Creator – Your Friendly Game Design Companion
           </h1>
@@ -16,12 +19,15 @@ function App() {
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-5xl flex-1 flex-col gap-16 px-6 py-16">
-        <Home />
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-16 px-6 py-12 sm:py-16">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/projects/:projectId" element={<ProjectPage />} />
+        </Routes>
       </main>
 
       <footer className="border-t border-slate-800 bg-slate-900/70">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-6 py-6 text-center text-sm text-slate-400 sm:flex-row sm:justify-between">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-6 py-6 text-center text-sm text-slate-400 sm:flex-row sm:justify-between">
           <p>&copy; {new Date().getFullYear()} Tabletop Creator. All rights reserved.</p>
           <p className="text-xs sm:text-sm">Crafted with Vite, React, TypeScript, and Tailwind CSS.</p>
         </div>
