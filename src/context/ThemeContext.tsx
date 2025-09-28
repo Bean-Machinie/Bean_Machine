@@ -52,21 +52,27 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     return localStorage.getItem(STORAGE_KEY) ?? DEFAULT_THEME_ID;
   });
 
-  useEffect(() => {
-    const activeTheme = THEME_PRESETS.find((candidate) => candidate.id === themeId) ?? THEME_PRESETS[0];
-    applyTheme(activeTheme);
-    localStorage.setItem(STORAGE_KEY, activeTheme.id);
+  const activeTheme = useMemo(() => {
+    return (
+      THEME_PRESETS.find((candidate) => candidate.id === themeId) ||
+      THEME_PRESETS.find((candidate) => candidate.id === DEFAULT_THEME_ID) ||
+      THEME_PRESETS[0]
+    );
   }, [themeId]);
 
+  useEffect(() => {
+    applyTheme(activeTheme);
+    localStorage.setItem(STORAGE_KEY, activeTheme.id);
+  }, [activeTheme]);
+
   const value = useMemo<ThemeContextValue>(() => {
-    const theme = THEME_PRESETS.find((candidate) => candidate.id === themeId) ?? THEME_PRESETS[0];
     return {
-      theme,
-      themeId: theme.id,
+      theme: activeTheme,
+      themeId: activeTheme.id,
       availableThemes: THEME_PRESETS,
       setThemeId,
     };
-  }, [themeId]);
+  }, [activeTheme]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
