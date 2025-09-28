@@ -208,7 +208,7 @@ function ProjectPage() {
 
   const asideDynamicClasses = useMemo(
     () =>
-      `flex h-full flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
+      `flex min-h-screen flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
         isCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'
       }`,
     [isCollapsed],
@@ -218,7 +218,7 @@ function ProjectPage() {
     () =>
       isCollapsed
         ? 'hidden'
-        : 'flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-6',
+        : 'flex flex-1 flex-col gap-6 overflow-hidden px-4 py-6',
     [isCollapsed],
   );
 
@@ -268,7 +268,7 @@ function ProjectPage() {
   const assetCount = project.assets.length;
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
+    <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
         <div className="flex items-start justify-between gap-3 border-b border-border/80 px-4 py-4">
           {!isCollapsed && (
@@ -305,13 +305,17 @@ function ProjectPage() {
           <button
             type="button"
             onClick={handleToggleCollapsed}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
             aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
           >
-            <svg viewBox="0 0 24 24" className={`h-4 w-4 transition-transform ${isCollapsed ? 'rotate-180' : ''}`} aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+              aria-hidden="true"
+            >
               <path
                 fill="currentColor"
-                d="M10.5 6.5a.75.75 0 10-1.06 1.06L12.88 11l-3.44 3.44a.75.75 0 101.06 1.06l4-4a.75.75 0 000-1.06z"
+                d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
               />
             </svg>
           </button>
@@ -322,7 +326,7 @@ function ProjectPage() {
             <button
               type="button"
               onClick={handleOpenSearchPanel}
-              className="flex w-full items-center justify-between rounded-xl border border-border/80 bg-surface/70 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+              className="flex h-12 w-full items-center justify-between rounded-xl border border-border/80 bg-surface/70 px-4 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
             >
               <span className="flex items-center gap-2">
                 <svg viewBox="0 0 24 24" className="h-4 w-4 text-text-muted" aria-hidden="true">
@@ -333,22 +337,19 @@ function ProjectPage() {
                 </svg>
                 Search project
               </span>
-              <span className="rounded-full border border-border/60 px-2 py-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
-                Search
-              </span>
             </button>
 
             <button
               type="button"
               onClick={handleOpenAssetBrowser}
-              className="flex w-full items-center justify-between rounded-xl border border-border/80 bg-surface/60 px-4 py-3 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+              className="flex h-12 w-full items-center justify-between rounded-xl border border-border/80 bg-surface/60 px-4 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
             >
               <span>Image Library</span>
               <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent/80">{assetCount}</span>
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="flex flex-1 flex-col overflow-hidden">
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
               <button
@@ -361,7 +362,7 @@ function ProjectPage() {
               </button>
             </div>
 
-            <div className="space-y-3">
+            <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
               {project.items.length === 0 ? (
                 <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-4 py-6 text-center text-xs text-text-muted">
                   No items yet. Add your first board, card deck, or poster using the button above.
@@ -370,12 +371,10 @@ function ProjectPage() {
                 project.items.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-4 text-sm text-text-secondary shadow-lg shadow-black/20"
+                    className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-3 text-sm text-text-secondary shadow-md shadow-black/10"
                   >
                     <p className="font-semibold text-text-primary">{item.name}</p>
-                    <p className="mt-1 text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-                    <p className="mt-2 text-xs text-text-muted">{item.variant}</p>
-                    {item.customDetails && <p className="mt-2 text-xs text-text-muted">{item.customDetails}</p>}
+                    <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
                   </div>
                 ))
               )}
