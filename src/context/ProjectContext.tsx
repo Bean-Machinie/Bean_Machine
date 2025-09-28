@@ -21,6 +21,8 @@ export interface Project {
   name: string;
   items: ProjectItem[];
   assets: ProjectAsset[];
+  updatedAt: string;
+  favorite: boolean;
 }
 
 export interface ItemInput {
@@ -47,11 +49,14 @@ interface ProjectContextValue {
   addItemToProject: (projectId: string, item: ItemInput) => ProjectItem | null;
   addAssetsToProject: (projectId: string, assets: AssetInput[]) => ProjectAsset[];
   removeAssetsFromProject: (projectId: string, assetIds: string[]) => void;
+  toggleFavorite: (projectId: string) => void;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
 const createId = () => crypto.randomUUID();
+
+const createTimestamp = (offsetMs: number) => new Date(Date.now() - offsetMs).toISOString();
 
 const initialProjects: Project[] = [
   {
@@ -83,6 +88,8 @@ const initialProjects: Project[] = [
         url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=60',
       },
     ],
+    updatedAt: createTimestamp(1000 * 60 * 60 * 5),
+    favorite: false,
   },
   {
     id: createId(),
@@ -102,11 +109,18 @@ const initialProjects: Project[] = [
         url: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=600&q=60',
       },
     ],
+    updatedAt: createTimestamp(1000 * 60 * 60 * 24 * 3),
+    favorite: false,
   },
 ];
 
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>(initialProjects);
+
+  const withUpdatedTimestamp = (project: Project): Project => ({
+    ...project,
+    updatedAt: new Date().toISOString(),
+  });
 
   const createProject = (input: NewProjectInput) => {
     const projectId = createId();
@@ -127,6 +141,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       name: input.name,
       items,
       assets: [],
+      updatedAt: new Date().toISOString(),
+      favorite: false,
     };
 
     setProjects((prev) => [...prev, newProject]);
@@ -137,10 +153,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? {
+          ? withUpdatedTimestamp({
               ...project,
               name,
-            }
+            })
           : project,
       ),
     );
@@ -158,10 +174,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? {
+          ? withUpdatedTimestamp({
               ...project,
               items: [...project.items, newItem],
-            }
+            })
           : project,
       ),
     );
@@ -179,10 +195,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? {
+          ? withUpdatedTimestamp({
               ...project,
               assets: [...project.assets, ...mappedAssets],
-            }
+            })
           : project,
       ),
     );
@@ -194,9 +210,22 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setProjects((prev) =>
       prev.map((project) =>
         project.id === projectId
-          ? {
+          ? withUpdatedTimestamp({
               ...project,
               assets: project.assets.filter((asset) => !assetIds.includes(asset.id)),
+            })
+          : project,
+      ),
+    );
+  };
+
+  const toggleFavorite = (projectId: string) => {
+    setProjects((prev) =>
+      prev.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              favorite: !project.favorite,
             }
           : project,
       ),
@@ -211,6 +240,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       addItemToProject,
       addAssetsToProject,
       removeAssetsFromProject,
+      toggleFavorite,
     }),
     [projects],
   );

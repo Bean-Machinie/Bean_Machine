@@ -8,7 +8,7 @@ import { useProjects } from '../context/ProjectContext';
 
 function Home() {
   const navigate = useNavigate();
-  const { projects, createProject } = useProjects();
+  const { projects, createProject, toggleFavorite } = useProjects();
   const [isDialogOpen, setDialogOpen] = useState(false);
 
   const handleCreateProject = useCallback(
@@ -54,7 +54,12 @@ function Home() {
           </p>
         </div>
 
-        <ProjectOverviewPanel projects={projects} onOpenProject={handleOpenProject} onCreateProject={handleOpenDialog} />
+        <ProjectOverviewPanel
+          projects={projects}
+          onOpenProject={handleOpenProject}
+          onCreateProject={handleOpenDialog}
+          onToggleFavorite={toggleFavorite}
+        />
       </section>
 
       <NewProjectDialog {...dialogProps} />
