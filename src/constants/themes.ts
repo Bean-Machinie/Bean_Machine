@@ -39,8 +39,8 @@ export const THEME_PRESETS: ThemeDefinition[] = [
     label: 'ChatGPT Dark',
     colorScheme: 'dark',
     tokens: {
-      '--color-background': '#0b0f14',       // deep neutral
-      '--color-surface': '#111318',          // panels
+      '--color-background': '#0b1412ff',       // deep neutral
+      '--color-surface': '#253835ff',          // panels
       '--color-surface-muted': '#181b20',
       '--color-surface-elevated': '#1f232a',
       '--color-border': '#2b3038',
