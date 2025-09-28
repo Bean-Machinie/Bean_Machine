@@ -7,7 +7,7 @@ import ProjectPage from './pages/ProjectPage';
 function App() {
   return (
     <div className="min-h-screen bg-background font-sans text-text-primary">
-      <header className="border-b border-border bg-surface/80 backdrop-blur">
+      <header className="border-b border-border bg-surface/90">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-6 text-center sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-3xl">
             Tabletop Creator – Your Friendly Game Design Companion

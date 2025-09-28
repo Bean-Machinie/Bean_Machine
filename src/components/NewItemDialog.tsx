@@ -63,7 +63,7 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/70 p-4 backdrop-blur">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/80 p-4">
       <div className="w-full max-w-2xl rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60">
         <div className="flex items-center justify-between border-b border-border/70 px-6 py-5">
           <div>
