@@ -4,14 +4,17 @@ import { BrowserRouter } from 'react-router-dom';
 
 import App from './App';
 import { ProjectProvider } from './context/ProjectContext';
+import { ThemeProvider } from './context/ThemeContext';
 import './styles/tailwind.css';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
     <BrowserRouter>
-      <ProjectProvider>
-        <App />
-      </ProjectProvider>
+      <ThemeProvider>
+        <ProjectProvider>
+          <App />
+        </ProjectProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>,
 );

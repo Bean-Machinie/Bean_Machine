@@ -25,13 +25,13 @@ function Home() {
     <>
       <section className="flex flex-col gap-12">
         <div className="flex flex-col items-center gap-6 text-center">
-          <span className="rounded-full border border-slate-700 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-slate-300">
+          <span className="rounded-full border border-border/70 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-text-secondary">
             Build Your Worlds
           </span>
-          <h2 className="max-w-3xl text-balance text-4xl font-bold tracking-tight text-white sm:text-5xl">
+          <h2 className="max-w-3xl text-balance text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
             Unleash your creativity and bring your tabletop game ideas to life with ease!
           </h2>
-          <p className="max-w-2xl text-balance text-lg leading-relaxed text-slate-300">
+          <p className="max-w-2xl text-balance text-lg leading-relaxed text-text-secondary">
             Tabletop Creator is the all-in-one tool for designing boards, cards, quest posters, and more.
           </p>
         </div>
