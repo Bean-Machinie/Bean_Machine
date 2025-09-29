@@ -6,7 +6,7 @@ import { ITEM_TYPE_DEFINITIONS } from '../constants/itemOptions';
 interface NewProjectDialogProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: { name: string; initialItem?: ItemInput }) => void;
+  onCreate: (data: { name: string; initialItem?: ItemInput }) => void | Promise<void>;
 }
 
 const emptyFormState = {
@@ -39,7 +39,7 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
     }));
   }, [typeDefinition]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedName = formState.name.trim();
@@ -62,11 +62,20 @@ function NewProjectDialog({ open, onClose, onCreate }: NewProjectDialogProps) {
       };
     }
 
-    onCreate({
-      name: trimmedName,
-      initialItem,
-    });
-    onClose();
+    try {
+      const result = onCreate({
+        name: trimmedName,
+        initialItem,
+      });
+
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        await result;
+      }
+
+      onClose();
+    } catch (error) {
+      console.error('Failed to create project', error);
+    }
   };
 
   const showCustomField =

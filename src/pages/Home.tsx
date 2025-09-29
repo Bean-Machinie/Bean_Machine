@@ -12,10 +12,15 @@ function Home() {
   const [isDialogOpen, setDialogOpen] = useState(false);
 
   const handleCreateProject = useCallback(
-    ({ name, initialItem }: { name: string; initialItem?: ItemInput }) => {
-      const project = createProject({ name, initialItem });
-      setDialogOpen(false);
-      navigate(`/projects/${project.id}`);
+    async ({ name, initialItem }: { name: string; initialItem?: ItemInput }) => {
+      try {
+        const project = await createProject({ name, initialItem });
+        setDialogOpen(false);
+        navigate(`/projects/${project.id}`);
+      } catch (error) {
+        console.error('Failed to create project', error);
+        throw error;
+      }
     },
     [createProject, navigate],
   );
@@ -25,6 +30,17 @@ function Home() {
       navigate(`/projects/${projectId}`);
     },
     [navigate],
+  );
+
+  const handleToggleFavorite = useCallback(
+    async (projectId: string) => {
+      try {
+        await toggleFavorite(projectId);
+      } catch (error) {
+        console.error('Failed to toggle favorite', error);
+      }
+    },
+    [toggleFavorite],
   );
 
   const handleOpenDialog = useCallback(() => setDialogOpen(true), []);
@@ -52,7 +68,7 @@ function Home() {
           projects={projects}
           onOpenProject={handleOpenProject}
           onCreateProject={handleOpenDialog}
-          onToggleFavorite={toggleFavorite}
+          onToggleFavorite={handleToggleFavorite}
         />
       </section>
 
