@@ -15,7 +15,15 @@ export default function ProtectedRoute() {
   }
 
   if (!user) {
-    return <Navigate to="/signin" replace state={{ from: location }} />;
+    const params = new URLSearchParams();
+    params.set('auth', 'signin');
+
+    const redirectPath = `${location.pathname}${location.search}`;
+    if (redirectPath && redirectPath !== '/') {
+      params.set('from', redirectPath);
+    }
+
+    return <Navigate to={`/?${params.toString()}`} replace />;
   }
 
   return <Outlet />;

@@ -1,13 +1,37 @@
 import { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 import { apiFetch } from '../lib/api';
 
-export default function VerifyPage() {
+interface VerifyPageProps {
+  onOpenSignIn?: () => void;
+  onOpenSignUp?: () => void;
+}
+
+export default function VerifyPage({ onOpenSignIn, onOpenSignUp }: VerifyPageProps) {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>(token ? 'loading' : 'idle');
   const [message, setMessage] = useState<string>('');
+  const navigate = useNavigate();
+
+  const handleOpenSignIn = () => {
+    if (onOpenSignIn) {
+      onOpenSignIn();
+      return;
+    }
+
+    navigate('/?auth=signin');
+  };
+
+  const handleOpenSignUp = () => {
+    if (onOpenSignUp) {
+      onOpenSignUp();
+      return;
+    }
+
+    navigate('/?auth=signup');
+  };
 
   useEffect(() => {
     if (!token) {
@@ -48,12 +72,20 @@ export default function VerifyPage() {
       )}
 
       <div className="flex flex-col gap-2 text-sm text-text-secondary">
-        <Link to="/signin" className="font-medium text-accent underline-offset-2 hover:underline">
+        <button
+          type="button"
+          onClick={handleOpenSignIn}
+          className="font-medium text-accent underline-offset-2 transition hover:underline"
+        >
           Go to sign in
-        </Link>
-        <Link to="/signup" className="font-medium text-accent/80 underline-offset-2 hover:underline">
+        </button>
+        <button
+          type="button"
+          onClick={handleOpenSignUp}
+          className="font-medium text-accent/80 underline-offset-2 transition hover:underline"
+        >
           Need a new account?
-        </Link>
+        </button>
       </div>
     </div>
   );
