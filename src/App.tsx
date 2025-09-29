@@ -1,32 +1,56 @@
-import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { useCallback, useMemo } from 'react';
 
-import ThemeSwitcher from './components/ThemeSwitcher';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import ProfilePage from './pages/ProfilePage';
 import ProjectPage from './pages/ProjectPage';
-import SignInPage from './pages/SignInPage';
-import SignUpPage from './pages/SignUpPage';
 import VerifyPage from './pages/VerifyPage';
+import AuthOverlay from './components/AuthOverlay';
 
 function App() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, signOut, initializing } = useAuth();
-  const [isSigningOut, setIsSigningOut] = useState(false);
+  const { user, initializing } = useAuth();
   const isProjectRoute = location.pathname.startsWith('/projects/');
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const authMode = searchParams.get('auth');
+  const redirectAfterAuth = searchParams.get('from') ?? undefined;
 
-  const handleSignOut = async () => {
-    setIsSigningOut(true);
-    try {
-      await signOut();
-      navigate('/');
-    } finally {
-      setIsSigningOut(false);
+  const openAuth = useCallback(
+    (mode: 'signin' | 'signup', options?: { from?: string }) => {
+      const params = new URLSearchParams(location.search);
+      params.set('auth', mode);
+      if (options?.from) {
+        params.set('from', options.from);
+      } else {
+        params.delete('from');
+      }
+
+      const search = params.toString();
+      navigate(`${location.pathname}${search ? `?${search}` : ''}`);
+    },
+    [location.pathname, location.search, navigate],
+  );
+
+  const closeAuth = useCallback(() => {
+    if (!authMode) {
+      return;
     }
-  };
+
+    const params = new URLSearchParams(location.search);
+    params.delete('auth');
+    params.delete('from');
+    const search = params.toString();
+    navigate(`${location.pathname}${search ? `?${search}` : ''}`, { replace: true });
+  }, [authMode, location.pathname, location.search, navigate]);
+
+  const handleAuthSuccess = useCallback(() => {
+    const destination = redirectAfterAuth ?? '/';
+    closeAuth();
+    navigate(destination, { replace: true });
+  }, [closeAuth, navigate, redirectAfterAuth]);
 
   return (
     <div className="flex min-h-screen flex-col bg-background font-sans text-text-primary">
@@ -37,38 +61,34 @@ function App() {
               Tabletop Creator – Your Friendly Game Design Companion
             </h1>
             <nav className="flex flex-col items-center justify-end gap-2 text-sm text-text-secondary sm:flex-row">
-              <Link to="/" className="rounded-full border border-border/70 px-3 py-1 font-medium uppercase tracking-wide text-text-secondary">
-                Starter Layout
-              </Link>
-              <ThemeSwitcher />
               <div className="flex items-center gap-3">
                 {initializing ? (
                   <span className="text-xs text-text-muted">Loading…</span>
                 ) : user ? (
-                  <>
-                    <Link to="/profile" className="font-medium text-accent underline-offset-2 hover:underline">
-                      Profile
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={handleSignOut}
-                      disabled={isSigningOut}
-                      className="rounded border border-border px-3 py-1 text-xs font-medium text-text-secondary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-70"
-                    >
-                      {isSigningOut ? 'Signing out…' : 'Log out'}
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => navigate('/profile')}
+                    className="relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-muted text-base font-semibold text-text-primary shadow-sm transition hover:border-accent hover:shadow-md"
+                  >
+                    <span className="uppercase">{user.email?.[0]?.toUpperCase() ?? 'U'}</span>
+                    <span className="sr-only">Open profile</span>
+                  </button>
                 ) : (
                   <>
-                    <Link to="/signin" className="font-medium text-accent underline-offset-2 hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => openAuth('signin')}
+                      className="font-medium text-accent underline-offset-2 transition hover:underline"
+                    >
                       Sign in
-                    </Link>
-                    <Link
-                      to="/signup"
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openAuth('signup')}
                       className="rounded bg-accent px-3 py-1 text-xs font-semibold text-text-inverse transition hover:bg-accent/90"
                     >
                       Sign up
-                    </Link>
+                    </button>
                   </>
                 )}
               </div>
@@ -77,18 +97,16 @@ function App() {
         </header>
       )}
 
-      <main
-        className={
-          isProjectRoute
-            ? 'flex flex-1 overflow-hidden'
-            : 'mx-auto flex w-full max-w-6xl flex-1 flex-col gap-16 px-6 py-12 sm:py-16'
-        }
-      >
+      <main className={isProjectRoute ? 'flex flex-1 overflow-hidden' : 'flex flex-1 flex-col'}>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/signup" element={<SignUpPage />} />
-          <Route path="/signin" element={<SignInPage />} />
-          <Route path="/verify" element={<VerifyPage />} />
+          <Route
+            path="/"
+            element={<Home onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />}
+          />
+          <Route
+            path="/verify"
+            element={<VerifyPage onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />}
+          />
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
@@ -102,6 +120,15 @@ function App() {
           <p className="text-xs sm:text-sm">Crafted with Vite, React, TypeScript, and Tailwind CSS.</p>
         </div>
       </footer>
+
+      {authMode && (
+        <AuthOverlay
+          mode={authMode === 'signup' ? 'signup' : 'signin'}
+          onClose={closeAuth}
+          onSuccess={handleAuthSuccess}
+          onSwitch={(mode) => openAuth(mode, redirectAfterAuth ? { from: redirectAfterAuth } : undefined)}
+        />
+      )}
     </div>
   );
 }

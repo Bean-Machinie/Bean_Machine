@@ -5,9 +5,16 @@ import ProjectOverviewPanel from '../components/ProjectOverviewPanel';
 import NewProjectDialog from '../components/NewProjectDialog';
 import { ItemInput } from '../context/ProjectContext';
 import { useProjects } from '../context/ProjectContext';
+import { useAuth } from '../context/AuthContext';
 
-function Home() {
+interface HomeProps {
+  onOpenSignIn: () => void;
+  onOpenSignUp: () => void;
+}
+
+function Home({ onOpenSignIn, onOpenSignUp }: HomeProps) {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { projects, createProject, toggleFavorite } = useProjects();
   const [isDialogOpen, setDialogOpen] = useState(false);
 
@@ -55,25 +62,49 @@ function Home() {
     [handleCloseDialog, handleCreateProject, isDialogOpen],
   );
 
-  return (
-    <>
-      <section className="flex flex-col gap-12">
-        <div className="flex flex-col items-center gap-6 text-center">
-          <h2 className="max-w-3xl text-balance text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
+  if (!user) {
+    return (
+      <div className="relative flex flex-1 items-center justify-center overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-br from-accent/20 via-surface-muted/40 to-transparent" />
+        <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center gap-8 px-6 py-16 text-center">
+          <h2 className="text-balance text-4xl font-bold tracking-tight text-text-primary sm:text-5xl">
             Unleash your creativity and bring your tabletop game ideas to life with ease!
           </h2>
+          <p className="max-w-2xl text-pretty text-base text-text-secondary sm:text-lg">
+            Start building custom boards, cards, and quests for your tabletop adventures with collaborative tools designed for storytellers.
+          </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+            <button
+              type="button"
+              onClick={onOpenSignIn}
+              className="rounded-full border border-border px-6 py-3 text-sm font-semibold text-text-primary transition hover:border-accent hover:text-accent"
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={onOpenSignUp}
+              className="rounded-full bg-accent px-6 py-3 text-sm font-semibold text-text-inverse shadow-sm transition hover:bg-accent/90"
+            >
+              Create your account
+            </button>
+          </div>
         </div>
+      </div>
+    );
+  }
 
-        <ProjectOverviewPanel
-          projects={projects}
-          onOpenProject={handleOpenProject}
-          onCreateProject={handleOpenDialog}
-          onToggleFavorite={handleToggleFavorite}
-        />
-      </section>
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-12 px-6 py-12 sm:py-16">
+      <ProjectOverviewPanel
+        projects={projects}
+        onOpenProject={handleOpenProject}
+        onCreateProject={handleOpenDialog}
+        onToggleFavorite={handleToggleFavorite}
+      />
 
       <NewProjectDialog {...dialogProps} />
-    </>
+    </div>
   );
 }
 

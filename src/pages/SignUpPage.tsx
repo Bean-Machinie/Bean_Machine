@@ -1,10 +1,14 @@
 import { FormEvent, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
 
-export default function SignUpPage() {
-  const { signUp } = useAuth();
+interface SignUpPanelProps {
+  onSuccess?: () => void;
+  onSwitch?: () => void;
+}
+
+export default function SignUpPage({ onSuccess, onSwitch }: SignUpPanelProps) {
+  const { signUp, signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,18 +34,30 @@ export default function SignUpPage() {
     setIsSubmitting(true);
     try {
       const result = await signUp({ email, password });
-      setIsError(!result.success);
-      setMessage(result.message);
-      if (result.success) {
-        setPassword('');
+      if (!result.success) {
+        setIsError(true);
+        setMessage(result.message);
+        return;
       }
+
+      setIsError(false);
+      setMessage('Account created! Signing you in…');
+
+      const loginResult = await signIn({ email, password });
+      if (loginResult.success) {
+        onSuccess?.();
+        return;
+      }
+
+      setIsError(true);
+      setMessage(loginResult.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-8">
+    <div className="flex w-full flex-col gap-8">
       <header className="space-y-2 text-center">
         <h2 className="text-3xl font-semibold text-text-primary">Create your account</h2>
         <p className="text-sm text-text-secondary">
@@ -94,9 +110,13 @@ export default function SignUpPage() {
 
       <p className="text-center text-sm text-text-secondary">
         Already have an account?{' '}
-        <Link to="/signin" className="font-medium text-accent underline-offset-2 hover:underline">
+        <button
+          type="button"
+          onClick={() => onSwitch?.()}
+          className="font-medium text-accent underline-offset-2 transition hover:underline"
+        >
           Sign in
-        </Link>
+        </button>
         .
       </p>
     </div>
