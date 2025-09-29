@@ -6,8 +6,8 @@ interface ImageAssetBrowserProps {
   open: boolean;
   assets: ProjectAsset[];
   onClose: () => void;
-  onAddAssets: (assets: AssetInput[]) => void;
-  onRemoveAssets: (assetIds: string[]) => void;
+  onAddAssets: (assets: AssetInput[]) => void | Promise<void>;
+  onRemoveAssets: (assetIds: string[]) => void | Promise<void>;
   onLocateAsset: (assetId: string) => void;
 }
 
@@ -17,7 +17,7 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
 
   const previewAsset = useMemo(() => assets.find((asset) => asset.id === previewAssetId) ?? null, [assets, previewAssetId]);
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
 
     if (files.length === 0) {
@@ -29,7 +29,14 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
       url: URL.createObjectURL(file),
     }));
 
-    onAddAssets(mapped);
+    try {
+      const result = onAddAssets(mapped);
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        await result;
+      }
+    } catch (error) {
+      console.error('Failed to add assets', error);
+    }
     event.target.value = '';
   };
 
@@ -60,9 +67,17 @@ function ImageAssetBrowser({ open, assets, onClose, onAddAssets, onRemoveAssets,
     }
   }, [onLocateAsset, selectedAssets]);
 
-  const handleRemoveSelected = useCallback(() => {
+  const handleRemoveSelected = useCallback(async () => {
     if (selectedAssets.length > 0) {
-      onRemoveAssets(selectedAssets);
+      try {
+        const result = onRemoveAssets(selectedAssets);
+        if (result && typeof (result as Promise<unknown>).then === 'function') {
+          await result;
+        }
+        setSelectedAssets([]);
+      } catch (error) {
+        console.error('Failed to remove assets', error);
+      }
     }
   }, [onRemoveAssets, selectedAssets]);
 

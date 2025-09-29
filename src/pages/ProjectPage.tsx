@@ -8,9 +8,9 @@ import { findProject, useProjects } from '../context/ProjectContext';
 
 const emptyAssetBrowserHandlers = Object.freeze({
   onClose: () => undefined,
-  onAddAssets: (_assets: AssetInput[]) => undefined,
-  onRemoveAssets: (_assetIds: string[]) => undefined,
-  onLocateAsset: (_assetId: string) => undefined,
+  onAddAssets: () => undefined,
+  onRemoveAssets: () => undefined,
+  onLocateAsset: () => undefined,
 });
 
 function ProjectPage() {
@@ -88,7 +88,7 @@ function ProjectPage() {
   const handleOpenAssetBrowser = useCallback(() => setAssetBrowserOpen(true), []);
   const handleCloseAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
 
-  const handleRename = useCallback(() => {
+  const handleRename = useCallback(async () => {
     if (!project) {
       return;
     }
@@ -100,43 +100,69 @@ function ProjectPage() {
       return;
     }
 
-    updateProjectName(project.id, trimmed);
-    setEditingTitle(false);
-    setStatusMessage('Project name updated');
+    try {
+      await updateProjectName(project.id, trimmed);
+      setEditingTitle(false);
+      setStatusMessage('Project name updated');
+    } catch (error) {
+      console.error('Failed to update project name', error);
+      setStatusMessage((error as Error).message ?? 'Failed to update project name');
+    }
   }, [project, titleValue, updateProjectName]);
 
   const handleAddItem = useCallback(
-    (item: ItemInput) => {
+    async (item: ItemInput) => {
       if (!project) {
         return;
       }
 
-      addItemToProject(project.id, item);
-      setStatusMessage(`${item.name} added to ${project.name}`);
+      const projectName = project.name;
+
+      try {
+        const created = await addItemToProject(project.id, item);
+        const itemName = created?.name ?? item.name;
+        setStatusMessage(`${itemName} added to ${projectName}`);
+      } catch (error) {
+        console.error('Failed to add item to project', error);
+        setStatusMessage((error as Error).message ?? 'Failed to add item');
+      }
     },
     [addItemToProject, project],
   );
 
   const handleAddAssets = useCallback(
-    (assets: AssetInput[]) => {
+    async (assets: AssetInput[]) => {
       if (!project || assets.length === 0) {
         return;
       }
 
-      addAssetsToProject(project.id, assets);
-      setStatusMessage(`${assets.length} asset${assets.length === 1 ? '' : 's'} added to the library`);
+      try {
+        const added = await addAssetsToProject(project.id, assets);
+        const count = added.length;
+        if (count > 0) {
+          setStatusMessage(`${count} asset${count === 1 ? '' : 's'} added to the library`);
+        }
+      } catch (error) {
+        console.error('Failed to add assets to project', error);
+        setStatusMessage((error as Error).message ?? 'Failed to add assets');
+      }
     },
     [addAssetsToProject, project],
   );
 
   const handleRemoveAssets = useCallback(
-    (assetIds: string[]) => {
+    async (assetIds: string[]) => {
       if (!project || assetIds.length === 0) {
         return;
       }
 
-      removeAssetsFromProject(project.id, assetIds);
-      setStatusMessage(`${assetIds.length} asset${assetIds.length === 1 ? '' : 's'} deleted`);
+      try {
+        await removeAssetsFromProject(project.id, assetIds);
+        setStatusMessage(`${assetIds.length} asset${assetIds.length === 1 ? '' : 's'} deleted`);
+      } catch (error) {
+        console.error('Failed to remove assets from project', error);
+        setStatusMessage((error as Error).message ?? 'Failed to remove assets');
+      }
     },
     [project, removeAssetsFromProject],
   );
@@ -277,11 +303,13 @@ function ProjectPage() {
                 <input
                   value={titleValue}
                   onChange={(event) => setTitleValue(event.target.value)}
-                  onBlur={handleRename}
+                  onBlur={() => {
+                    void handleRename();
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
                       event.preventDefault();
-                      handleRename();
+                      void handleRename();
                     } else if (event.key === 'Escape') {
                       setTitleValue(project.name);
                       setEditingTitle(false);

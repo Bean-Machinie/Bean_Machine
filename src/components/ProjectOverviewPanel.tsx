@@ -7,13 +7,13 @@ interface ProjectOverviewPanelProps {
   projects: Project[];
   onOpenProject: (projectId: string) => void;
   onCreateProject: () => void;
-  onToggleFavorite: (projectId: string) => void;
+  onToggleFavorite: (projectId: string) => void | Promise<void>;
 }
 
 interface ProjectCardProps {
   project: Project;
   onOpenProject: (projectId: string) => void;
-  onToggleFavorite: (projectId: string) => void;
+  onToggleFavorite: (projectId: string) => void | Promise<void>;
 }
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
@@ -52,7 +52,7 @@ const ProjectCard = memo(({ project, onOpenProject, onToggleFavorite }: ProjectC
   const handleToggleFavorite = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       event.stopPropagation();
-      onToggleFavorite(project.id);
+      void onToggleFavorite(project.id);
     },
     [onToggleFavorite, project.id],
   );

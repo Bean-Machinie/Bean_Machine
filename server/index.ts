@@ -20,6 +20,34 @@ type DbUser = {
   verification_token: string | null;
 };
 
+type DbProject = {
+  id: string;
+  user_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  favorite: number;
+};
+
+type DbProjectItem = {
+  id: string;
+  project_id: string;
+  name: string;
+  type: string;
+  variant: string;
+  custom_details: string | null;
+  created_at: string;
+};
+
+type DbProjectAsset = {
+  id: string;
+  project_id: string;
+  name: string;
+  url: string;
+  created_at: string;
+};
+
+/* eslint-disable @typescript-eslint/no-namespace */
 declare global {
   namespace Express {
     interface Request {
@@ -27,6 +55,7 @@ declare global {
     }
   }
 }
+/* eslint-enable @typescript-eslint/no-namespace */
 
 const app = express();
 const PORT = Number(process.env.PORT ?? 4000);
@@ -39,6 +68,7 @@ const DATABASE_FILE = process.env.DATABASE_FILE ?? path.join(process.cwd(), 'aut
 // Initialise a simple SQLite database to persist users locally.
 const db = new Database(DATABASE_FILE);
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 db.prepare(
   `CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -49,6 +79,148 @@ db.prepare(
     verification_token TEXT
   )`
 ).run();
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS projects (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    favorite INTEGER NOT NULL DEFAULT 0 CHECK(favorite IN (0, 1))
+  )`
+).run();
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS project_items (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    variant TEXT NOT NULL,
+    custom_details TEXT,
+    created_at TEXT NOT NULL
+  )`
+).run();
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS project_assets (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  )`
+).run();
+
+const selectProjectsByUserStatement = db.prepare(
+  `SELECT * FROM projects WHERE user_id = ? ORDER BY datetime(updated_at) DESC`,
+);
+
+const selectProjectByIdStatement = db.prepare(
+  `SELECT * FROM projects WHERE id = ? AND user_id = ?`,
+);
+
+const selectItemsForProjectStatement = db.prepare(
+  `SELECT * FROM project_items WHERE project_id = ? ORDER BY datetime(created_at) ASC`,
+);
+
+const selectAssetsForProjectStatement = db.prepare(
+  `SELECT * FROM project_assets WHERE project_id = ? ORDER BY datetime(created_at) ASC`,
+);
+
+const insertProjectStatement = db.prepare(
+  `INSERT INTO projects (id, user_id, name, created_at, updated_at, favorite)
+   VALUES (?, ?, ?, ?, ?, 0)`,
+);
+
+const updateProjectStatement = db.prepare(
+  `UPDATE projects
+     SET name = COALESCE(?, name),
+         favorite = COALESCE(?, favorite),
+         updated_at = ?
+   WHERE id = ? AND user_id = ?`,
+);
+
+const insertProjectItemStatement = db.prepare(
+  `INSERT INTO project_items (id, project_id, name, type, variant, custom_details, created_at)
+   VALUES (?, ?, ?, ?, ?, ?, ?)`,
+);
+
+const insertProjectAssetStatement = db.prepare(
+  `INSERT INTO project_assets (id, project_id, name, url, created_at)
+   VALUES (?, ?, ?, ?, ?)`,
+);
+
+const touchProjectStatement = db.prepare(
+  `UPDATE projects SET updated_at = ? WHERE id = ? AND user_id = ?`,
+);
+
+type ApiProjectItem = {
+  id: string;
+  name: string;
+  type: string;
+  variant: string;
+  customDetails?: string;
+};
+
+type ApiProjectAsset = {
+  id: string;
+  name: string;
+  url: string;
+};
+
+type ApiProject = {
+  id: string;
+  name: string;
+  items: ApiProjectItem[];
+  assets: ApiProjectAsset[];
+  updatedAt: string;
+  favorite: boolean;
+};
+
+function mapItem(row: DbProjectItem): ApiProjectItem {
+  return {
+    id: row.id,
+    name: row.name,
+    type: row.type,
+    variant: row.variant,
+    customDetails: row.custom_details ?? undefined,
+  } satisfies ApiProjectItem;
+}
+
+function mapAsset(row: DbProjectAsset): ApiProjectAsset {
+  return {
+    id: row.id,
+    name: row.name,
+    url: row.url,
+  } satisfies ApiProjectAsset;
+}
+
+function serializeProject(project: DbProject): ApiProject {
+  const items = selectItemsForProjectStatement.all(project.id) as DbProjectItem[];
+  const assets = selectAssetsForProjectStatement.all(project.id) as DbProjectAsset[];
+
+  return {
+    id: project.id,
+    name: project.name,
+    items: items.map(mapItem),
+    assets: assets.map(mapAsset),
+    updatedAt: project.updated_at,
+    favorite: Boolean(project.favorite),
+  } satisfies ApiProject;
+}
+
+function listProjects(userId: string): ApiProject[] {
+  const projects = selectProjectsByUserStatement.all(userId) as DbProject[];
+  return projects.map(serializeProject);
+}
+
+function loadProject(projectId: string, userId: string): ApiProject | undefined {
+  const project = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+  if (!project) {
+    return undefined;
+  }
+
+  return serializeProject(project);
+}
 
 type Mailer = {
   transporter: nodemailer.Transporter;
@@ -111,6 +283,44 @@ const verifySchema = z.object({
 const loginSchema = z.object({
   email: z.string().email('Please provide a valid email.'),
   password: z.string().min(1, 'Password is required.'),
+});
+
+const projectItemTypeSchema = z.enum(['board', 'cardDeck', 'questPoster', 'custom']);
+
+const projectItemInputSchema = z.object({
+  name: z.string().trim().min(1, 'Item name is required.'),
+  type: projectItemTypeSchema,
+  variant: z.string().trim().min(1, 'Variant is required.'),
+  customDetails: z.string().optional(),
+});
+
+const createProjectSchema = z.object({
+  name: z.string().trim().min(1, 'Project name is required.'),
+  initialItem: projectItemInputSchema.optional(),
+});
+
+const updateProjectSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Project name is required.').optional(),
+    favorite: z.boolean().optional(),
+  })
+  .refine((data) => data.name !== undefined || data.favorite !== undefined, {
+    message: 'Provide at least one field to update.',
+  });
+
+const addAssetsSchema = z.object({
+  assets: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1, 'Asset name is required.'),
+        url: z.string().trim().min(1, 'Asset URL is required.'),
+      }),
+    )
+    .min(1, 'Provide at least one asset to add.'),
+});
+
+const removeAssetsSchema = z.object({
+  assetIds: z.array(z.string().min(1)).min(1, 'Provide at least one asset to remove.'),
 });
 
 function createJwt(user: { id: string; email: string }) {
@@ -311,11 +521,230 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   return res.json({ user: req.user });
 });
 
+app.get('/api/projects', requireAuth, (req, res) => {
+  const userId = req.user!.id;
+  try {
+    const projects = listProjects(userId);
+    return res.json({ projects });
+  } catch (error: unknown) {
+    console.error('Failed to list projects', error);
+    return res.status(500).json({ message: 'Unable to fetch projects. Please try again.' });
+  }
+});
+
+app.post('/api/projects', requireAuth, (req, res) => {
+  const parsed = createProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const { name, initialItem } = parsed.data;
+  const userId = req.user!.id;
+  const projectId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const transaction = db.transaction(() => {
+    insertProjectStatement.run(projectId, userId, name.trim(), now, now);
+
+    if (initialItem) {
+      const itemId = crypto.randomUUID();
+      insertProjectItemStatement.run(
+        itemId,
+        projectId,
+        initialItem.name.trim(),
+        initialItem.type,
+        initialItem.variant.trim(),
+        initialItem.customDetails?.trim() || null,
+        now,
+      );
+    }
+  });
+
+  try {
+    transaction();
+  } catch (error: unknown) {
+    console.error('Failed to create project', error);
+    return res.status(500).json({ message: 'Could not create project. Please try again.' });
+  }
+
+  const project = loadProject(projectId, userId);
+  if (!project) {
+    return res.status(500).json({ message: 'Project could not be loaded after creation.' });
+  }
+
+  return res.status(201).json({ project });
+});
+
+app.patch('/api/projects/:projectId', requireAuth, (req, res) => {
+  const parsed = updateProjectSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const { projectId } = req.params;
+  const userId = req.user!.id;
+  const existing = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+
+  const now = new Date().toISOString();
+  const favoriteValue = parsed.data.favorite === undefined ? null : parsed.data.favorite ? 1 : 0;
+
+  try {
+    updateProjectStatement.run(parsed.data.name?.trim() ?? null, favoriteValue, now, projectId, userId);
+  } catch (error: unknown) {
+    console.error('Failed to update project', error);
+    return res.status(500).json({ message: 'Could not update project. Please try again.' });
+  }
+
+  const project = loadProject(projectId, userId);
+  if (!project) {
+    return res.status(500).json({ message: 'Project could not be loaded after update.' });
+  }
+
+  return res.json({ project });
+});
+
+app.post('/api/projects/:projectId/items', requireAuth, (req, res) => {
+  const parsed = projectItemInputSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const { projectId } = req.params;
+  const userId = req.user!.id;
+  const existing = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+
+  const itemId = crypto.randomUUID();
+  const now = new Date().toISOString();
+
+  const transaction = db.transaction(() => {
+    insertProjectItemStatement.run(
+      itemId,
+      projectId,
+      parsed.data.name.trim(),
+      parsed.data.type,
+      parsed.data.variant.trim(),
+      parsed.data.customDetails?.trim() || null,
+      now,
+    );
+    touchProjectStatement.run(now, projectId, userId);
+  });
+
+  try {
+    transaction();
+  } catch (error: unknown) {
+    console.error('Failed to add project item', error);
+    return res.status(500).json({ message: 'Could not add item to project. Please try again.' });
+  }
+
+  const project = loadProject(projectId, userId);
+  if (!project) {
+    return res.status(500).json({ message: 'Project could not be loaded after adding the item.' });
+  }
+
+  const item = project.items.find((candidate) => candidate.id === itemId);
+
+  return res.status(201).json({ item, project });
+});
+
+app.post('/api/projects/:projectId/assets', requireAuth, (req, res) => {
+  const parsed = addAssetsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const { projectId } = req.params;
+  const userId = req.user!.id;
+  const existing = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+
+  const createdAssets: ApiProjectAsset[] = [];
+  const now = new Date().toISOString();
+
+  const transaction = db.transaction(() => {
+    for (const asset of parsed.data.assets) {
+      const assetId = crypto.randomUUID();
+      const trimmedName = asset.name.trim();
+      const trimmedUrl = asset.url.trim();
+      insertProjectAssetStatement.run(assetId, projectId, trimmedName, trimmedUrl, now);
+      createdAssets.push({ id: assetId, name: trimmedName, url: trimmedUrl });
+    }
+
+    touchProjectStatement.run(now, projectId, userId);
+  });
+
+  try {
+    transaction();
+  } catch (error: unknown) {
+    console.error('Failed to add project assets', error);
+    return res.status(500).json({ message: 'Could not add assets. Please try again.' });
+  }
+
+  const project = loadProject(projectId, userId);
+  if (!project) {
+    return res.status(500).json({ message: 'Project could not be loaded after adding assets.' });
+  }
+
+  return res.status(201).json({ assets: createdAssets, project });
+});
+
+app.delete('/api/projects/:projectId/assets', requireAuth, (req, res) => {
+  const parsed = removeAssetsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const { projectId } = req.params;
+  const userId = req.user!.id;
+  const existing = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+
+  if (!existing) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+
+  const placeholders = parsed.data.assetIds.map(() => '?').join(', ');
+  const now = new Date().toISOString();
+
+  const transaction = db.transaction(() => {
+    const deleteStatement = db.prepare(
+      `DELETE FROM project_assets WHERE project_id = ? AND id IN (${placeholders})`,
+    );
+    const result = deleteStatement.run(projectId, ...parsed.data.assetIds);
+    if (result.changes > 0) {
+      touchProjectStatement.run(now, projectId, userId);
+    }
+  });
+
+  try {
+    transaction();
+  } catch (error: unknown) {
+    console.error('Failed to remove project assets', error);
+    return res.status(500).json({ message: 'Could not remove assets. Please try again.' });
+  }
+
+  const project = loadProject(projectId, userId);
+  if (!project) {
+    return res.status(500).json({ message: 'Project could not be loaded after removing assets.' });
+  }
+
+  return res.json({ project });
+});
+
 app.use((_req, res) => {
   res.status(404).json({ message: 'Not found.' });
 });
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: unknown, _req: Request, res: Response) => {
   console.error('Unhandled error', err);
   res.status(500).json({ message: 'An unexpected error occurred.' });
 });

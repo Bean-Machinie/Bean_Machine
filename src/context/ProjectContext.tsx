@@ -1,4 +1,7 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+
+import { apiFetch } from '../lib/api';
+import { useAuth } from './AuthContext';
 
 export type ProjectItemType = 'board' | 'cardDeck' | 'questPoster' | 'custom';
 
@@ -44,197 +47,167 @@ export interface AssetInput {
 
 interface ProjectContextValue {
   projects: Project[];
-  createProject: (input: NewProjectInput) => Project;
-  updateProjectName: (projectId: string, name: string) => void;
-  addItemToProject: (projectId: string, item: ItemInput) => ProjectItem | null;
-  addAssetsToProject: (projectId: string, assets: AssetInput[]) => ProjectAsset[];
-  removeAssetsFromProject: (projectId: string, assetIds: string[]) => void;
-  toggleFavorite: (projectId: string) => void;
+  loading: boolean;
+  refreshProjects: () => Promise<void>;
+  createProject: (input: NewProjectInput) => Promise<Project>;
+  updateProjectName: (projectId: string, name: string) => Promise<void>;
+  addItemToProject: (projectId: string, item: ItemInput) => Promise<ProjectItem | null>;
+  addAssetsToProject: (projectId: string, assets: AssetInput[]) => Promise<ProjectAsset[]>;
+  removeAssetsFromProject: (projectId: string, assetIds: string[]) => Promise<void>;
+  toggleFavorite: (projectId: string) => Promise<void>;
 }
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
-const createId = () => crypto.randomUUID();
-
-const createTimestamp = (offsetMs: number) => new Date(Date.now() - offsetMs).toISOString();
-
-const initialProjects: Project[] = [
-  {
-    id: createId(),
-    name: 'Mystic Realms Board Game',
-    items: [
-      {
-        id: createId(),
-        name: 'Realm Exploration Board',
-        type: 'board',
-        variant: 'Large (36 × 36 in)',
-      },
-      {
-        id: createId(),
-        name: 'Quest Reference Cards',
-        type: 'cardDeck',
-        variant: 'Tarot (2.75 × 4.75 in)',
-      },
-    ],
-    assets: [
-      {
-        id: createId(),
-        name: 'Forest Illustration',
-        url: 'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=600&q=60',
-      },
-      {
-        id: createId(),
-        name: 'Quest Icon Set',
-        url: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=600&q=60',
-      },
-    ],
-    updatedAt: createTimestamp(1000 * 60 * 60 * 5),
-    favorite: false,
-  },
-  {
-    id: createId(),
-    name: 'Galactic Outpost Adventure',
-    items: [
-      {
-        id: createId(),
-        name: 'Mission Brief Posters',
-        type: 'questPoster',
-        variant: 'A3 (297 × 420 mm)',
-      },
-    ],
-    assets: [
-      {
-        id: createId(),
-        name: 'Star Map Texture',
-        url: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?auto=format&fit=crop&w=600&q=60',
-      },
-    ],
-    updatedAt: createTimestamp(1000 * 60 * 60 * 24 * 3),
-    favorite: false,
-  },
-];
-
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
-  const [projects, setProjects] = useState<Project[]>(initialProjects);
+  const { user } = useAuth();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const withUpdatedTimestamp = (project: Project): Project => ({
-    ...project,
-    updatedAt: new Date().toISOString(),
-  });
+  const fetchProjects = useCallback(async () => {
+    if (!user) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
 
-  const createProject = (input: NewProjectInput) => {
-    const projectId = createId();
-    const items: ProjectItem[] = input.initialItem
-      ? [
-          {
-            id: createId(),
-            name: input.initialItem.name,
-            type: input.initialItem.type,
-            variant: input.initialItem.variant,
-            customDetails: input.initialItem.customDetails,
-          },
-        ]
-      : [];
+    setLoading(true);
+    try {
+      const data = await apiFetch<{ projects: Project[] }>('/api/projects', { method: 'GET' });
+      setProjects(data.projects);
+    } catch (error) {
+      console.error('Failed to load projects', error);
+      setProjects([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
-    const newProject: Project = {
-      id: projectId,
-      name: input.name,
-      items,
-      assets: [],
-      updatedAt: new Date().toISOString(),
-      favorite: false,
-    };
+  useEffect(() => {
+    if (!user) {
+      setProjects([]);
+      setLoading(false);
+      return;
+    }
 
-    setProjects((prev) => [...prev, newProject]);
-    return newProject;
-  };
+    void fetchProjects();
+  }, [fetchProjects, user]);
 
-  const updateProjectName = (projectId: string, name: string) => {
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === projectId
-          ? withUpdatedTimestamp({
-              ...project,
-              name,
-            })
-          : project,
-      ),
-    );
-  };
+  const createProject = useCallback(
+    async (input: NewProjectInput) => {
+      if (!user) {
+        throw new Error('You must be signed in to create projects.');
+      }
 
-  const addItemToProject = (projectId: string, item: ItemInput) => {
-    const newItem: ProjectItem = {
-      id: createId(),
-      name: item.name,
-      type: item.type,
-      variant: item.variant,
-      customDetails: item.customDetails,
-    };
+      const data = await apiFetch<{ project: Project }>('/api/projects', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      });
 
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === projectId
-          ? withUpdatedTimestamp({
-              ...project,
-              items: [...project.items, newItem],
-            })
-          : project,
-      ),
-    );
+      setProjects((prev) => [...prev, data.project]);
+      return data.project;
+    },
+    [user],
+  );
 
-    return newItem;
-  };
+  const updateProjectName = useCallback(
+    async (projectId: string, name: string) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
 
-  const addAssetsToProject = (projectId: string, assets: AssetInput[]) => {
-    const mappedAssets: ProjectAsset[] = assets.map((asset) => ({
-      id: createId(),
-      name: asset.name,
-      url: asset.url,
-    }));
+      const data = await apiFetch<{ project: Project }>(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name }),
+      });
 
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === projectId
-          ? withUpdatedTimestamp({
-              ...project,
-              assets: [...project.assets, ...mappedAssets],
-            })
-          : project,
-      ),
-    );
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+    },
+    [user],
+  );
 
-    return mappedAssets;
-  };
+  const addItemToProject = useCallback(
+    async (projectId: string, item: ItemInput) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
 
-  const removeAssetsFromProject = (projectId: string, assetIds: string[]) => {
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === projectId
-          ? withUpdatedTimestamp({
-              ...project,
-              assets: project.assets.filter((asset) => !assetIds.includes(asset.id)),
-            })
-          : project,
-      ),
-    );
-  };
+      const data = await apiFetch<{ item: ProjectItem | null; project: Project }>(
+        `/api/projects/${projectId}/items`,
+        {
+          method: 'POST',
+          body: JSON.stringify(item),
+        },
+      );
 
-  const toggleFavorite = (projectId: string) => {
-    setProjects((prev) =>
-      prev.map((project) =>
-        project.id === projectId
-          ? {
-              ...project,
-              favorite: !project.favorite,
-            }
-          : project,
-      ),
-    );
-  };
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+      return data.item ?? null;
+    },
+    [user],
+  );
+
+  const addAssetsToProject = useCallback(
+    async (projectId: string, assets: AssetInput[]) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
+
+      const data = await apiFetch<{ assets: ProjectAsset[]; project: Project }>(
+        `/api/projects/${projectId}/assets`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ assets }),
+        },
+      );
+
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+      return data.assets;
+    },
+    [user],
+  );
+
+  const removeAssetsFromProject = useCallback(
+    async (projectId: string, assetIds: string[]) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
+
+      const data = await apiFetch<{ project: Project }>(`/api/projects/${projectId}/assets`, {
+        method: 'DELETE',
+        body: JSON.stringify({ assetIds }),
+      });
+
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+    },
+    [user],
+  );
+
+  const toggleFavorite = useCallback(
+    async (projectId: string) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
+
+      const target = projects.find((project) => project.id === projectId);
+      if (!target) {
+        throw new Error('Project not found.');
+      }
+
+      const data = await apiFetch<{ project: Project }>(`/api/projects/${projectId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ favorite: !target.favorite }),
+      });
+
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+    },
+    [projects, user],
+  );
 
   const value = useMemo(
     () => ({
       projects,
+      loading,
+      refreshProjects: fetchProjects,
       createProject,
       updateProjectName,
       addItemToProject,
@@ -242,7 +215,17 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       removeAssetsFromProject,
       toggleFavorite,
     }),
-    [projects],
+    [
+      addAssetsToProject,
+      addItemToProject,
+      createProject,
+      fetchProjects,
+      loading,
+      projects,
+      removeAssetsFromProject,
+      toggleFavorite,
+      updateProjectName,
+    ],
   );
 
   return <ProjectContext.Provider value={value}>{children}</ProjectContext.Provider>;

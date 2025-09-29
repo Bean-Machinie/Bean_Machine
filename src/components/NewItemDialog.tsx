@@ -6,7 +6,7 @@ import { ITEM_TYPE_DEFINITIONS } from '../constants/itemOptions';
 interface NewItemDialogProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (item: ItemInput) => void;
+  onSubmit: (item: ItemInput) => void | Promise<void>;
 }
 
 const defaultState = {
@@ -28,7 +28,7 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
     setFormState(defaultState);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const trimmedName = formState.name.trim();
@@ -36,18 +36,26 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
       return;
     }
 
-    onSubmit({
-      name: trimmedName,
-      type: formState.itemType,
-      variant: formState.variant,
-      customDetails:
-        formState.variant.toLowerCase().includes('custom') || formState.itemType === 'custom'
-          ? formState.customDetails.trim() || undefined
-          : undefined,
-    });
+    try {
+      const result = onSubmit({
+        name: trimmedName,
+        type: formState.itemType,
+        variant: formState.variant,
+        customDetails:
+          formState.variant.toLowerCase().includes('custom') || formState.itemType === 'custom'
+            ? formState.customDetails.trim() || undefined
+            : undefined,
+      });
 
-    resetForm();
-    onClose();
+      if (result && typeof (result as Promise<unknown>).then === 'function') {
+        await result;
+      }
+
+      resetForm();
+      onClose();
+    } catch (error) {
+      console.error('Failed to add item', error);
+    }
   };
 
   const handleClose = () => {
