@@ -1,13 +1,15 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useState, type RefObject } from 'react';
 
 import { useAuth } from '../context/AuthContext';
 
 interface SignInPanelProps {
   onSuccess?: () => void;
   onSwitch?: () => void;
+  titleId?: string;
+  initialFocusRef?: RefObject<HTMLInputElement>;
 }
 
-export default function SignInPage({ onSuccess, onSwitch }: SignInPanelProps) {
+export default function SignInPage({ onSuccess, onSwitch, titleId, initialFocusRef }: SignInPanelProps) {
   const { signIn } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -41,7 +43,9 @@ export default function SignInPage({ onSuccess, onSwitch }: SignInPanelProps) {
   return (
     <div className="flex w-full flex-col gap-8">
       <header className="space-y-2 text-center">
-        <h2 className="text-3xl font-semibold text-text-primary">Welcome back</h2>
+        <h2 id={titleId ?? undefined} className="text-3xl font-semibold text-text-primary">
+          Welcome back
+        </h2>
         <p className="text-sm text-text-secondary">Sign in to access your profile.</p>
       </header>
 
@@ -52,6 +56,7 @@ export default function SignInPage({ onSuccess, onSwitch }: SignInPanelProps) {
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
+            ref={initialFocusRef ?? undefined}
             className="rounded border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
             placeholder="you@example.com"
             autoComplete="email"
