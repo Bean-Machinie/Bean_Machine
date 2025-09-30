@@ -344,15 +344,12 @@ function ProjectPage() {
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
-        <div
-          className={`flex items-start justify-between gap-3 border-b border-border/80 px-3 ${
-            isCollapsed ? 'py-3' : 'py-4'
-          }`}
-        >
+        <div className="flex items-start justify-between gap-3 border-b border-border/80 px-3 py-4">
           <div
-            className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
-              isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-32 opacity-100'
+            className={`flex flex-1 flex-col gap-1 overflow-hidden transition-opacity duration-300 ${
+              isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
             }`}
+            aria-hidden={isCollapsed}
           >
             {isEditingTitle ? (
               <input
