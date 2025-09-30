@@ -344,63 +344,61 @@ function ProjectPage() {
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
-        <div
-          className={`flex items-start justify-between gap-3 border-b border-border/80 px-3 transition-all duration-300 ${
-            isCollapsed ? 'py-2' : 'py-4'
-          }`}
-        >
-          <div
-            className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
-              isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-24 opacity-100'
-            }`}
-            aria-hidden={isCollapsed}
-          >
-            {isEditingTitle ? (
-              <input
-                value={titleValue}
-                onChange={(event) => setTitleValue(event.target.value)}
-                onBlur={() => {
-                  void handleRename();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    event.preventDefault();
+        <div className="relative border-b border-border/80 px-3 py-4">
+          <div className="flex min-h-[96px] items-start justify-between gap-3">
+            <div
+              className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-24 opacity-100'
+              }`}
+              aria-hidden={isCollapsed}
+            >
+              {isEditingTitle ? (
+                <input
+                  value={titleValue}
+                  onChange={(event) => setTitleValue(event.target.value)}
+                  onBlur={() => {
                     void handleRename();
-                  } else if (event.key === 'Escape') {
-                    setTitleValue(project.name);
-                    setEditingTitle(false);
-                  }
-                }}
-                autoFocus
-                className="rounded-xl border border-accent/70 bg-surface/80 px-3 py-2 text-base font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
-              />
-            ) : (
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleRename();
+                    } else if (event.key === 'Escape') {
+                      setTitleValue(project.name);
+                      setEditingTitle(false);
+                    }
+                  }}
+                  autoFocus
+                  className="rounded-xl border border-accent/70 bg-surface/80 px-3 py-2 text-base font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartEditingTitle}
+                  className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
+                  title="Rename project"
+                >
+                  {project.name}
+                </button>
+              )}
+              <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
+            </div>
+            {!isCollapsed && (
               <button
                 type="button"
-                onClick={handleStartEditingTitle}
-                className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
-                title="Rename project"
+                onClick={handleToggleCollapsed}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
+                aria-label="Collapse action menu"
               >
-                {project.name}
+                <svg viewBox="0 0 24 24" className="h-5 w-5 rotate-180" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
+                  />
+                </svg>
               </button>
             )}
-            <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
           </div>
-          {!isCollapsed && (
-            <button
-              type="button"
-              onClick={handleToggleCollapsed}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
-              aria-label="Collapse action menu"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5 rotate-180" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
-                />
-              </svg>
-            </button>
-          )}
         </div>
 
         {isCollapsed && (
