@@ -235,22 +235,72 @@ function ProjectPage() {
   const asideDynamicClasses = useMemo(
     () =>
       `flex min-h-screen flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
-        isCollapsed ? 'w-[4.75rem]' : 'w-[18rem]'
+        isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'
       }`,
     [isCollapsed],
   );
 
-  const expandedContentClasses = useMemo(
-    () =>
-      isCollapsed
-        ? 'hidden'
-        : 'flex flex-1 flex-col gap-6 overflow-hidden px-4 py-6',
-    [isCollapsed],
-  );
+  const assetCount = project?.assets.length ?? 0;
 
-  const collapsedContentClasses = useMemo(
-    () => (isCollapsed ? 'flex flex-1 flex-col items-center gap-8 px-2 py-8' : 'hidden'),
-    [isCollapsed],
+  const navigationItems = useMemo(
+    () => [
+      {
+        id: 'search',
+        label: 'Search in Project',
+        icon: (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+            <path
+              d="M10.5 4.5a6 6 0 014.8 9.6l3.7 3.7a.75.75 0 11-1.06 1.06l-3.7-3.7A6 6 0 114.5 10.5a6 6 0 016-6z"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        ),
+        onClick: handleOpenSearchPanel,
+        isActive: isSearchPanelOpen,
+      },
+      {
+        id: 'library',
+        label: 'Image Library',
+        icon: (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+            <path
+              d="M4.5 6.75A2.25 2.25 0 016.75 4.5h10.5a2.25 2.25 0 012.25 2.25v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25zm3 1.5h9a.75.75 0 01.6 1.2l-2.4 3.2a.75.75 0 01-1.08.12l-2.01-1.68a.75.75 0 00-1.02.03l-1.32 1.32a.75.75 0 01-1.24-.36l-.75-3a.75.75 0 01.72-.93z"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        ),
+        onClick: handleOpenAssetBrowser,
+        isActive: isAssetBrowserOpen,
+        badge: assetCount,
+      },
+      {
+        id: 'add',
+        label: 'Add New Item',
+        icon: (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+            <path
+              d="M12 5.25v13.5m-6.75-6.75h13.5"
+              fill="none"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="1.5"
+            />
+          </svg>
+        ),
+        onClick: handleOpenItemDialog,
+        isActive: isItemDialogOpen,
+      },
+    ],
+    [assetCount, handleOpenAssetBrowser, handleOpenItemDialog, handleOpenSearchPanel, isAssetBrowserOpen, isItemDialogOpen, isSearchPanelOpen],
   );
 
   const assetBrowserProps = useMemo(() => {
@@ -291,45 +341,46 @@ function ProjectPage() {
     );
   }
 
-  const assetCount = project.assets.length;
-
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
         <div className="flex items-start justify-between gap-3 border-b border-border/80 px-4 py-4">
-          {!isCollapsed && (
-            <div className="flex flex-1 flex-col gap-1">
-              {isEditingTitle ? (
-                <input
-                  value={titleValue}
-                  onChange={(event) => setTitleValue(event.target.value)}
-                  onBlur={() => {
+          <div
+            className={`flex flex-1 flex-col gap-1 transition-opacity duration-300 ${
+              isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+            }`}
+          >
+            {isEditingTitle ? (
+              <input
+                value={titleValue}
+                onChange={(event) => setTitleValue(event.target.value)}
+                onBlur={() => {
+                  void handleRename();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
                     void handleRename();
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      void handleRename();
-                    } else if (event.key === 'Escape') {
-                      setTitleValue(project.name);
-                      setEditingTitle(false);
-                    }
-                  }}
-                  autoFocus
-                  className="rounded-xl border border-accent/70 bg-surface/80 px-3 py-2 text-base font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={handleStartEditingTitle}
-                  className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
-                >
-                  {project.name}
-                </button>
-              )}
-              <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
-            </div>
-          )}
+                  } else if (event.key === 'Escape') {
+                    setTitleValue(project.name);
+                    setEditingTitle(false);
+                  }
+                }}
+                autoFocus
+                className="rounded-xl border border-accent/70 bg-surface/80 px-3 py-2 text-base font-semibold text-text-primary outline-none focus:ring-2 focus:ring-accent/40"
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={handleStartEditingTitle}
+                className="text-left text-lg font-semibold text-text-primary transition hover:text-accent/80"
+                title="Rename project"
+              >
+                {project.name}
+              </button>
+            )}
+            <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
+          </div>
           <button
             type="button"
             onClick={handleToggleCollapsed}
@@ -349,100 +400,85 @@ function ProjectPage() {
           </button>
         </div>
 
-        <div className={expandedContentClasses}>
-          <div className="space-y-4">
-            <button
-              type="button"
-              onClick={handleOpenSearchPanel}
-              className="flex h-12 w-full items-center justify-between rounded-xl border border-border/80 bg-surface/70 px-4 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
-            >
-              <span className="flex items-center gap-2">
-                <svg viewBox="0 0 24 24" className="h-4 w-4 text-text-muted" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M10 4a6 6 0 014.62 9.8l4.29 4.29a.75.75 0 11-1.06 1.06l-4.29-4.29A6 6 0 1110 4zm0 1.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"
-                  />
-                </svg>
-                Search project
-              </span>
-            </button>
+        <nav className="flex flex-col gap-2 px-3 py-4" aria-label="Project navigation">
+          {navigationItems.map((item) => {
+            const iconBaseClasses = 'flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200';
+            const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
+            const buttonClasses = item.isActive
+              ? 'border-accent/40 bg-accent/15 text-accent'
+              : 'border-transparent text-text-secondary hover:border-border/80 hover:bg-surface/60 hover:text-text-primary';
 
-            <button
-              type="button"
-              onClick={handleOpenAssetBrowser}
-              className="flex h-12 w-full items-center justify-between rounded-xl border border-border/80 bg-surface/60 px-4 text-left text-sm font-semibold text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
-            >
-              <span>Image Library</span>
-              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent/80">{assetCount}</span>
-            </button>
-          </div>
-
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
+            return (
               <button
+                key={item.id}
                 type="button"
-                onClick={handleOpenItemDialog}
-                className="flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-lg font-semibold text-text-secondary transition hover:border-accent hover:text-accent/80"
-                aria-label="Add item"
+                onClick={item.onClick}
+                className={`group relative flex items-center rounded-xl border px-3 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  isCollapsed ? 'justify-center' : 'justify-start'
+                } ${buttonClasses}`}
+                aria-label={item.label}
+                title={isCollapsed ? item.label : undefined}
               >
-                +
-              </button>
-            </div>
-
-            <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
-              {project.items.length === 0 ? (
-                <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-4 py-6 text-center text-xs text-text-muted">
-                  No items yet. Add your first board, card deck, or poster using the button above.
-                </p>
-              ) : (
-                project.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-3 text-sm text-text-secondary shadow-md shadow-black/10"
+                <span className={`${iconBaseClasses} ${iconStateClasses}`}>
+                  {item.icon}
+                </span>
+                <div
+                  className={`flex-1 overflow-hidden transition-[max-width] duration-300 ease-out ${
+                    isCollapsed ? 'max-w-0' : 'ml-3 max-w-[12rem]'
+                  }`}
+                >
+                  <span
+                    className={`block whitespace-nowrap text-sm font-medium transition-opacity duration-200 ${
+                      isCollapsed ? 'opacity-0' : 'opacity-100'
+                    }`}
                   >
-                    <p className="font-semibold text-text-primary">{item.name}</p>
-                    <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
+                    {item.label}
+                  </span>
+                </div>
+                {!isCollapsed && item.badge !== undefined && (
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </nav>
 
-        <div className={collapsedContentClasses}>
-          <button
-            type="button"
-            onClick={handleStartEditingTitle}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
-            title="Rename project"
-          >
-            ✎
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenSearchPanel}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
-            title="Search project"
-          >
-            🔍
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenAssetBrowser}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
-            title="Image library"
-          >
-            🖼️
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenItemDialog}
-            className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/70 text-text-primary transition hover:border-accent hover:text-accent/80"
-            title="Add item"
-          >
-            +
-          </button>
+        <div
+          className={`flex flex-1 flex-col overflow-hidden px-4 pb-6 transition-opacity duration-300 ${
+            isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
+            <button
+              type="button"
+              onClick={handleOpenItemDialog}
+              className="flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-lg font-semibold text-text-secondary transition hover:border-accent hover:text-accent/80"
+              aria-label="Add item"
+            >
+              +
+            </button>
+          </div>
+
+          <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
+            {project.items.length === 0 ? (
+              <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-4 py-6 text-center text-xs text-text-muted">
+                No items yet. Add your first board, card deck, or poster using the button above.
+              </p>
+            ) : (
+              project.items.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-3 text-sm text-text-secondary shadow-md shadow-black/10"
+                >
+                  <p className="font-semibold text-text-primary">{item.name}</p>
+                  <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </aside>
 
