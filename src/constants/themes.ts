@@ -14,22 +14,29 @@ export const THEME_PRESETS: ThemeDefinition[] = [
     label: 'ChatGPT Light',
     colorScheme: 'light',
     tokens: {
-      '--color-background': '#ffffff',       // main canvas
-      '--color-surface': '#f7f7f8',          // panels/sidebar
-      '--color-surface-muted': '#f0f2f5',
-      '--color-surface-elevated': '#ffffff',
-      '--color-border': '#e5e7eb',
-      '--color-border-strong': '#cbd5e1',
-      '--color-text-primary': '#111418',
-      '--color-text-secondary': '#3a3f45',
-      '--color-text-muted': '#6b7280',
-      '--color-text-inverse': '#ffffff',
-      '--color-accent': '#10a37f',           // OpenAI green
-      '--color-accent-strong': '#15b893',
-      '--color-accent-contrast': '#062e24',  // text on green buttons
-      '--color-overlay': '#0b0f14',
-      '--color-ring': '#10a37f',
-      '--color-highlight': '#d1fae5',
+                                                // Backgrounds and surfaces
+      '--color-background': '#F8FAB4',        // --color-background – The main page color. Sets the overall vibe.
+      '--color-surface': '#FFC7A7',           // --color-surface – The default card/panel color. Most boxes use this.
+      '--color-surface-muted': '#f0f2f5',     // -color-surface-muted – A softer card color for secondary areas.
+      '--color-surface-elevated': '#ffffff',  // --color-surface-elevated – A stronger card color for top-level areas.
+      '--color-overlay': '#0b0f14',           // --color-overlay – The overlay color for modals, popups, and menus.
+      '--color-highlight': '#d1fae5',         // --color-highlight – The highlight color for selected text.
+                                                
+                                                // Borders and outlines
+      '--color-border': '#e5e7eb',            // --color-border – The default border color. Used for dividers and outlines.
+      '--color-border-strong': '#cbd5e1',     // --color-border-strong – A stronger border color for emphasis.
+      '--color-ring': '#F08787',              // --color-ring – The focus ring color for accessibility.
+
+                                                // Typography (Text colors)
+      '--color-text-primary': '#111418',      // --color-text-primary – Main text color. Make this the most readable.
+      '--color-text-secondary': '#3a3f45',    // --color-text-secondary – Subheadings and supporting text.
+      '--color-text-muted': '#6b7280',        // --color-text-muted – Low-importance notes and hints.
+      '--color-text-inverse': '#ffffff',      // --color-text-inverse – Text on dark or saturated backgrounds.
+
+                                                // Accent colors (Buttons, links, highlights)
+      '--color-accent': '#F08787',            // --color-accent – Primary action color. Use for buttons, links, and highlights.
+      '--color-accent-strong': '#FFC7A7',     // --color-accent-strong – A stronger accent color for hover states and emphasis.
+      '--color-accent-contrast': '#111418',   // --color-accent-contrast – Text color on top of accent backgrounds.
     },
   },
 
@@ -108,53 +115,53 @@ export const THEME_PRESETS: ThemeDefinition[] = [
     },
   },
 
-  // --- Keep: Oceanic Blue ---
+  // --- Aurora Light ---
   {
-    id: 'oceanic',
-    label: 'Oceanic Blue',
-    colorScheme: 'dark',
+    id: 'Aurora Light',
+    label: 'Aurora Light',
+    colorScheme: 'light',
     tokens: {
-      '--color-background': '#0a1128',
-      '--color-surface': '#001f54',
-      '--color-surface-muted': '#034078',
-      '--color-surface-elevated': '#1282a2',
-      '--color-border': '#256d85',
-      '--color-border-strong': '#2e8bc0',
-      '--color-text-primary': '#f0faff',
-      '--color-text-secondary': '#d1ecf9',
-      '--color-text-muted': '#94b8c9',
-      '--color-text-inverse': '#001f3f',
-      '--color-accent': '#06d6a0',
-      '--color-accent-strong': '#1be7c7',
-      '--color-accent-contrast': '#002b36',
-      '--color-overlay': '#021019',
-      '--color-ring': '#06d6a0',
-      '--color-highlight': '#1be7c7',
+      '--color-background': '#EEF2F6',
+      '--color-surface': '#F6F8FB',
+      '--color-surface-muted': '#E9EEF5',
+      '--color-surface-elevated': '#FFFFFF',
+      '--color-border': '#E2E8F0',
+      '--color-border-strong': '#CBD5E1',
+      '--color-text-primary': '#0F172A',
+      '--color-text-secondary': '#334155',
+      '--color-text-muted': '#64748B',
+      '--color-text-inverse': '#FFFFFF',
+      '--color-accent': '#16A34A',
+      '--color-accent-strong': '#22C55E',
+      '--color-accent-contrast': '#FFFFFF',
+      '--color-overlay': '#0B0F14',
+      '--color-ring': '#22C55E',
+      '--color-highlight': '#E7F5EC',
     },
   },
 
-  // --- Keep: Desert Clay (Soft) ---
+  // --- Velvet Night ---
   {
-    id: 'desert-soft',
-    label: 'Desert Clay (Soft)',
+    id: 'Velvet Light',
+    label: 'Velvet Light',
     colorScheme: 'light',
     tokens: {
-      '--color-background': '#f4ede8',
-      '--color-surface': '#ece2db',
-      '--color-surface-muted': '#e0d0c5',
-      '--color-surface-elevated': '#faf7f5',
-      '--color-border': '#c8aa94',
-      '--color-border-strong': '#a67c68',
-      '--color-text-primary': '#3a2f2b',
-      '--color-text-secondary': '#52433e',
-      '--color-text-muted': '#7a665e',
-      '--color-text-inverse': '#ffffff',
-      '--color-accent': '#b86d57',
-      '--color-accent-strong': '#cc826c',
-      '--color-accent-contrast': '#3a2f2b',
-      '--color-overlay': '#1d1512',
-      '--color-ring': '#b86d57',
-      '--color-highlight': '#d89a85',
+      '--color-background': '#0B1120',
+      '--color-surface': '#0F172A',
+      '--color-surface-muted': '#111C2E',
+      '--color-surface-elevated': '#1F2937',
+      '--color-border': '#1F2937',
+      '--color-border-strong': '#334155',
+      '--color-text-primary': '#F8FAFC',
+      '--color-text-secondary': '#E2E8F0',
+      '--color-text-muted': '#94A3B8',
+      '--color-text-inverse': '#0B1120',
+      '--color-accent': '#22C55E',
+      '--color-accent-strong': '#16A34A',
+      '--color-accent-contrast': '#FFFFFF',
+      '--color-overlay': '#0B0F14',
+      '--color-ring': '#22C55E',
+      '--color-highlight': '#0E2A22',
     },
   },
 ];
