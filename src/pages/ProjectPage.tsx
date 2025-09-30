@@ -303,6 +303,16 @@ function ProjectPage() {
     [assetCount, handleOpenAssetBrowser, handleOpenItemDialog, handleOpenSearchPanel, isAssetBrowserOpen, isItemDialogOpen, isSearchPanelOpen],
   );
 
+  const navButtonBaseClasses =
+    'group relative flex w-full items-center justify-start gap-2 overflow-hidden rounded-xl border px-2.5 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40';
+  const navIconBaseClasses =
+    'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors duration-200';
+  const navLabelClasses = `flex-1 whitespace-nowrap text-left text-sm font-medium leading-none transition-[margin,max-width,opacity,transform] duration-300 ${
+    isCollapsed
+      ? 'pointer-events-none -translate-x-2 opacity-0 delay-0 max-w-0'
+      : 'ml-2 max-w-[12rem] translate-x-0 opacity-100 delay-150'
+  }`;
+
   const assetBrowserProps = useMemo(() => {
     if (!project) {
       return {
@@ -343,13 +353,9 @@ function ProjectPage() {
 
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
-      <aside className={asideDynamicClasses}>
-        <div className="relative border-b border-border/80 px-3 py-4">
-          <div
-            className={`flex min-h-[50px] items-center transition-all duration-300 ${
-              isCollapsed ? 'justify-start gap-2' : 'justify-between gap-3'
-            }`}
-          >
+        <aside className={asideDynamicClasses}>
+          <div className="relative border-b border-border/80 px-3 py-4">
+            <div className="flex min-h-[50px] items-center justify-start gap-3 transition-all duration-300">
             <div
               className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
                 isCollapsed ? 'pointer-events-none max-h-0 opacity-0 flex-none' : 'flex-1 max-h-24 opacity-100'
@@ -387,72 +393,72 @@ function ProjectPage() {
               )}
               <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
             </div>
+            </div>
+          </div>
+
+          <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
             <button
               type="button"
               onClick={handleToggleCollapsed}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition-all duration-300 hover:border-accent hover:bg-accent/10 hover:text-accent"
+              className={`${
+                isCollapsed
+                  ? `${navButtonBaseClasses} border-border/70 bg-surface/70 text-text-secondary hover:border-accent/70 hover:bg-accent/10 hover:text-accent`
+                  : `${navButtonBaseClasses} border-border/70 bg-surface/80 text-text-secondary hover:border-accent hover:bg-accent/10 hover:text-accent`
+              }`}
               aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
+              title={isCollapsed ? 'Expand action menu' : undefined}
             >
-              <svg
-                viewBox="0 0 24 24"
-                className={`h-5 w-5 transition-transform duration-300 ${isCollapsed ? 'rotate-0' : 'rotate-180'}`}
-                aria-hidden="true"
+              <span
+                className={`${navIconBaseClasses} text-text-muted transition-transform duration-300 ${
+                  isCollapsed ? 'group-hover:text-accent' : 'rotate-180 group-hover:text-accent'
+                }`}
               >
-                <path
-                  fill="currentColor"
-                  d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
-                />
-              </svg>
+                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+                  <path
+                    fill="currentColor"
+                    d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
+                  />
+                </svg>
+              </span>
+              <span className={navLabelClasses} aria-hidden={isCollapsed}>
+                {isCollapsed ? 'Expand menu' : 'Collapse menu'}
+              </span>
             </button>
-          </div>
-        </div>
 
-        <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
-          {navigationItems.map((item) => {
-            const iconBaseClasses =
-              'flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg transition-colors duration-200';
-            const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
-            const buttonClasses = item.isActive
-              ? 'border-accent/40 bg-accent/15 text-accent'
-              : 'border-transparent text-text-secondary hover:border-border/80 hover:bg-surface/60 hover:text-text-primary';
+            {navigationItems.map((item) => {
+              const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
+              const buttonClasses = item.isActive
+                ? 'border-accent/40 bg-accent/15 text-accent'
+                : 'border-transparent text-text-secondary hover:border-border/80 hover:bg-surface/60 hover:text-text-primary';
 
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={item.onClick}
-                className={`group relative flex w-full items-center justify-start gap-2 overflow-hidden rounded-xl border px-2.5 py-2 text-sm font-medium transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${buttonClasses}`}
-                aria-label={item.label}
-                title={isCollapsed ? item.label : undefined}
-              >
-                <span className={`${iconBaseClasses} ${iconStateClasses}`}>
-                  {item.icon}
-                </span>
-                <span
-                  className={`flex-1 whitespace-nowrap text-left text-sm font-medium leading-none transition-[margin,max-width,opacity,transform] duration-300 ${
-                    isCollapsed
-                      ? 'pointer-events-none -translate-x-2 opacity-0 delay-0 max-w-0'
-                      : 'ml-2 max-w-[12rem] translate-x-0 opacity-100 delay-150'
-                  }`}
-                  aria-hidden={isCollapsed}
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={item.onClick}
+                  className={`${navButtonBaseClasses} ${buttonClasses}`}
+                  aria-label={item.label}
+                  title={isCollapsed ? item.label : undefined}
                 >
-                  {item.label}
-                </span>
-                {!isCollapsed && item.badge !== undefined && (
-                  <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
-                    {item.badge}
+                  <span className={`${navIconBaseClasses} ${iconStateClasses}`}>{item.icon}</span>
+                  <span className={navLabelClasses} aria-hidden={isCollapsed}>
+                    {item.label}
                   </span>
-                )}
-              </button>
-            );
-          })}
-        </nav>
+                  {!isCollapsed && item.badge !== undefined && (
+                    <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
 
-        <div
-          className={`flex flex-1 flex-col overflow-hidden px-2.5 pb-6 transition-opacity duration-300 ${
-            isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
-          }`}
-        >
+          <div
+            className={`flex flex-1 flex-col overflow-hidden px-2.5 pb-6 transition-opacity duration-300 ${
+              isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+            }`}
+          >
           <div className="flex items-center justify-start">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
           </div>
