@@ -42,9 +42,19 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return data as T;
 }
 
+export type ApiSocialLinks = {
+  website?: string;
+  discord?: string;
+  twitter?: string;
+};
+
 export type ApiUser = {
   id: string;
   email: string;
+  displayName: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  social: ApiSocialLinks;
 };
 
 export const API_BASE_URL = API_URL;
