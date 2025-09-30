@@ -361,7 +361,7 @@ function ProjectPage() {
         <div className={`min-h-[50px] ${isCollapsed ? 'pr-0' : 'pr-12'}`}>
           <div className="flex min-h-[50px] w-full items-center gap-3 transition-all duration-300">
             <div
-              className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-130 ${
+              className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
                 isCollapsed ? 'pointer-events-none max-h-0 opacity-0 flex-none' : 'flex-1 max-h-24 opacity-100'
               }`}
               aria-hidden={isCollapsed}
