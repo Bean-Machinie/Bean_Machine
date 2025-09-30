@@ -9,7 +9,7 @@ This project now ships with a tiny Express + SQLite backend to showcase email + 
 
 ## Setup
 
-1. Install dependencies:
+1. Install dependencies (rerun this command after pulling updates that add new packages):
    ```bash
    npm install
    ```
