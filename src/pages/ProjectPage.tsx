@@ -345,10 +345,14 @@ function ProjectPage() {
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
         <div className="relative border-b border-border/80 px-3 py-4">
-          <div className="flex min-h-[50px] items-start justify-between gap-3">
+          <div
+            className={`flex min-h-[50px] items-center gap-3 transition-all duration-300 ${
+              isCollapsed ? 'justify-center' : 'justify-between'
+            }`}
+          >
             <div
-              className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
-                isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-24 opacity-100'
+              className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+                isCollapsed ? 'pointer-events-none max-h-0 opacity-0 flex-none' : 'flex-1 max-h-24 opacity-100'
               }`}
               aria-hidden={isCollapsed}
             >
@@ -383,43 +387,25 @@ function ProjectPage() {
               )}
               <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
             </div>
-            {!isCollapsed && (
-              <button
-                type="button"
-                onClick={handleToggleCollapsed}
-                className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
-                aria-label="Collapse action menu"
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5 rotate-180" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {isCollapsed && (
-          <div className="px-2.5 pt-3">
             <button
               type="button"
               onClick={handleToggleCollapsed}
-              className="group flex w-full items-center justify-start rounded-xl border border-border/70 bg-surface/80 px-2.5 py-2 text-text-secondary shadow-sm shadow-black/10 transition-colors duration-200 hover:border-accent hover:bg-accent/10 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-              aria-label="Expand action menu"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition-all duration-300 hover:border-accent hover:bg-accent/10 hover:text-accent"
+              aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
             >
-              <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg">
-                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
-                  />
-                </svg>
-              </span>
+              <svg
+                viewBox="0 0 24 24"
+                className={`h-5 w-5 transition-transform duration-300 ${isCollapsed ? 'rotate-0' : 'rotate-180'}`}
+                aria-hidden="true"
+              >
+                <path
+                  fill="currentColor"
+                  d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
+                />
+              </svg>
             </button>
           </div>
-        )}
+        </div>
 
         <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
           {navigationItems.map((item) => {
