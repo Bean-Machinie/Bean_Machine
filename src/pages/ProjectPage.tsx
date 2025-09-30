@@ -234,7 +234,7 @@ function ProjectPage() {
 
   const asideDynamicClasses = useMemo(
     () =>
-      `flex min-h-screen flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
+      `relative flex min-h-screen flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
         isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'
       }`,
     [isCollapsed],
@@ -344,7 +344,7 @@ function ProjectPage() {
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
-        <div className="flex items-start justify-between gap-3 border-b border-border/80 px-4 py-4">
+        <div className="flex items-start justify-between gap-3 border-b border-border/80 px-3 py-4">
           <div
             className={`flex flex-1 flex-col gap-1 transition-opacity duration-300 ${
               isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
@@ -381,28 +381,42 @@ function ProjectPage() {
             )}
             <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
           </div>
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={handleToggleCollapsed}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
+              aria-label="Collapse action menu"
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5 rotate-180" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {isCollapsed && (
           <button
             type="button"
             onClick={handleToggleCollapsed}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
-            aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
+            className="absolute top-4 right-3 flex h-9 w-9 items-center justify-center rounded-full border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition hover:border-accent hover:bg-accent/10 hover:text-accent"
+            aria-label="Expand action menu"
           >
-            <svg
-              viewBox="0 0 24 24"
-              className={`h-5 w-5 transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
-              aria-hidden="true"
-            >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
               <path
                 fill="currentColor"
                 d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
               />
             </svg>
           </button>
-        </div>
+        )}
 
-        <nav className="flex flex-col gap-2 px-3 py-4" aria-label="Project navigation">
+        <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
           {navigationItems.map((item) => {
-            const iconBaseClasses = 'flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200';
+            const iconBaseClasses = 'flex h-7 w-7 items-center justify-center rounded-lg transition-colors duration-200';
             const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
             const buttonClasses = item.isActive
               ? 'border-accent/40 bg-accent/15 text-accent'
@@ -413,8 +427,8 @@ function ProjectPage() {
                 key={item.id}
                 type="button"
                 onClick={item.onClick}
-                className={`group relative flex items-center rounded-xl border px-3 py-3 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                  isCollapsed ? 'justify-center' : 'justify-start'
+                className={`group relative flex items-center rounded-xl border px-2.5 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  isCollapsed ? 'justify-center' : 'justify-start gap-2'
                 } ${buttonClasses}`}
                 aria-label={item.label}
                 title={isCollapsed ? item.label : undefined}
@@ -422,21 +436,13 @@ function ProjectPage() {
                 <span className={`${iconBaseClasses} ${iconStateClasses}`}>
                   {item.icon}
                 </span>
-                <div
-                  className={`flex-1 overflow-hidden transition-[max-width] duration-300 ease-out ${
-                    isCollapsed ? 'max-w-0' : 'ml-3 max-w-[12rem]'
-                  }`}
-                >
-                  <span
-                    className={`block whitespace-nowrap text-sm font-medium transition-opacity duration-200 ${
-                      isCollapsed ? 'opacity-0' : 'opacity-100'
-                    }`}
-                  >
+                {!isCollapsed && (
+                  <span className="flex-1 whitespace-nowrap text-left text-sm font-medium leading-none transition-opacity duration-200">
                     {item.label}
                   </span>
-                </div>
+                )}
                 {!isCollapsed && item.badge !== undefined && (
-                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                  <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
                     {item.badge}
                   </span>
                 )}
@@ -446,32 +452,24 @@ function ProjectPage() {
         </nav>
 
         <div
-          className={`flex flex-1 flex-col overflow-hidden px-4 pb-6 transition-opacity duration-300 ${
+          className={`flex flex-1 flex-col overflow-hidden px-2.5 pb-6 transition-opacity duration-300 ${
             isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
           }`}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-start">
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
-            <button
-              type="button"
-              onClick={handleOpenItemDialog}
-              className="flex h-8 w-8 items-center justify-center rounded-md border border-border/70 text-lg font-semibold text-text-secondary transition hover:border-accent hover:text-accent/80"
-              aria-label="Add item"
-            >
-              +
-            </button>
           </div>
 
           <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
             {project.items.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-4 py-6 text-center text-xs text-text-muted">
-                No items yet. Add your first board, card deck, or poster using the button above.
+              <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-xs text-text-muted">
+                No items yet. Use the action menu to add your first board, card deck, or poster.
               </p>
             ) : (
               project.items.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl border border-border/80 bg-surface/70 px-4 py-3 text-sm text-text-secondary shadow-md shadow-black/10"
+                  className="rounded-2xl border border-border/80 bg-surface/70 px-3 py-2.5 text-sm text-text-secondary shadow-md shadow-black/10"
                 >
                   <p className="font-semibold text-text-primary">{item.name}</p>
                   <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
