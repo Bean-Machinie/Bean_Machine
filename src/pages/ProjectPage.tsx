@@ -345,7 +345,7 @@ function ProjectPage() {
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
         <div className="relative border-b border-border/80 px-3 py-4">
-          <div className="flex min-h-[96px] items-start justify-between gap-3">
+          <div className="flex min-h-[50px] items-start justify-between gap-3">
             <div
               className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
                 isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-24 opacity-100'
