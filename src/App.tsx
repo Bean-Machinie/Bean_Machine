@@ -121,14 +121,13 @@ function App() {
         </div>
       </footer>
 
-      {authMode && (
-        <AuthOverlay
-          mode={authMode === 'signup' ? 'signup' : 'signin'}
-          onClose={closeAuth}
-          onSuccess={handleAuthSuccess}
-          onSwitch={(mode) => openAuth(mode, redirectAfterAuth ? { from: redirectAfterAuth } : undefined)}
-        />
-      )}
+      <AuthOverlay
+        open={Boolean(authMode)}
+        mode={authMode === 'signup' ? 'signup' : 'signin'}
+        onClose={closeAuth}
+        onSuccess={handleAuthSuccess}
+        onSwitch={(mode) => openAuth(mode, redirectAfterAuth ? { from: redirectAfterAuth } : undefined)}
+      />
     </div>
   );
 }

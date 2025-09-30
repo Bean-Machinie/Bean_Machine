@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 
 import { Project } from '../context/ProjectContext';
+import SegmentedControl from './SegmentedControl';
 
 interface ProjectOverviewPanelProps {
   projects: Project[];
@@ -135,10 +136,20 @@ function ProjectOverviewPanel({ projects, onOpenProject, onCreateProject, onTogg
     return sortedProjects;
   }, [sortedProjects, sortMode]);
 
-  const handleSelectRecent = useCallback(() => setSortMode('recent'), []);
-  const handleSelectFavorites = useCallback(() => setSortMode('favorites'), []);
+  const handleSegmentChange = useCallback((segmentId: string) => {
+    if (segmentId === 'recent' || segmentId === 'favorites') {
+      setSortMode(segmentId);
+    }
+  }, []);
 
   const hasFavorites = useMemo(() => projects.some((project) => project.favorite), [projects]);
+  const segmentItems = useMemo(
+    () => [
+      { id: 'recent', label: 'Recent' },
+      { id: 'favorites', label: 'Favorites' },
+    ],
+    [],
+  );
 
   return (
     <section className="rounded-3xl border border-border bg-surface-muted/60 shadow-2xl shadow-black/40">
@@ -154,32 +165,12 @@ function ProjectOverviewPanel({ projects, onOpenProject, onCreateProject, onTogg
           </p>
         </div>
         <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-surface/40 p-1">
-            <button
-              type="button"
-              onClick={handleSelectRecent}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                sortMode === 'recent'
-                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/40'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              aria-pressed={sortMode === 'recent'}
-            >
-              Recent
-            </button>
-            <button
-              type="button"
-              onClick={handleSelectFavorites}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
-                sortMode === 'favorites'
-                  ? 'bg-accent text-accent-contrast shadow-sm shadow-accent/40'
-                  : 'text-text-secondary hover:text-text-primary'
-              }`}
-              aria-pressed={sortMode === 'favorites'}
-            >
-              Favorites
-            </button>
-          </div>
+          <SegmentedControl
+            value={sortMode}
+            onChange={handleSegmentChange}
+            items={segmentItems}
+            ariaLabel="Filter projects by recency or favorites"
+          />
           <button
             type="button"
             onClick={onCreateProject}

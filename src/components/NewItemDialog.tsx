@@ -2,6 +2,7 @@ import { FormEvent, useMemo, useState } from 'react';
 
 import { ItemInput, ProjectItemType } from '../context/ProjectContext';
 import { ITEM_TYPE_DEFINITIONS } from '../constants/itemOptions';
+import CloseButton from './CloseButton';
 
 interface NewItemDialogProps {
   open: boolean;
@@ -78,19 +79,7 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-accent/70">New Item</p>
             <h2 className="mt-2 text-xl font-semibold text-text-primary">Add to this project</h2>
           </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-text-primary"
-            aria-label="Close"
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-              <path
-                fill="currentColor"
-                d="M6.22 6.22a.75.75 0 011.06 0L12 10.94l4.72-4.72a.75.75 0 111.06 1.06L13.06 12l4.72 4.72a.75.75 0 11-1.06 1.06L12 13.06l-4.72 4.72a.75.75 0 11-1.06-1.06L10.94 12 6.22 7.28a.75.75 0 010-1.06z"
-              />
-            </svg>
-          </button>
+          <CloseButton onClick={handleClose} label="Close new item dialog" className="ml-2 shrink-0" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
