@@ -74,7 +74,7 @@ export const THEME_PRESETS: ThemeDefinition[] = [
       '--color-background': '#1b1035',
       '--color-surface': '#2a1b3d',
       '--color-surface-muted': '#3b2e5a',
-      '--color-surface-elevated': '#44318d',
+      '--color-surface-elevated': '#342057ff',
       '--color-border': '#5a4aa8',
       '--color-border-strong': '#7a65c7',
       '--color-text-primary': '#ffffff',
