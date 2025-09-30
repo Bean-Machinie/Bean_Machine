@@ -344,10 +344,14 @@ function ProjectPage() {
   return (
     <div className="flex min-h-screen w-full overflow-hidden">
       <aside className={asideDynamicClasses}>
-        <div className="flex items-start justify-between gap-3 border-b border-border/80 px-3 py-4">
+        <div
+          className={`flex items-start justify-between gap-3 border-b border-border/80 px-3 ${
+            isCollapsed ? 'py-3' : 'py-4'
+          }`}
+        >
           <div
-            className={`flex flex-1 flex-col gap-1 transition-opacity duration-300 ${
-              isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+            className={`flex flex-1 flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+              isCollapsed ? 'pointer-events-none max-h-0 opacity-0' : 'max-h-32 opacity-100'
             }`}
           >
             {isEditingTitle ? (
@@ -427,7 +431,7 @@ function ProjectPage() {
                 key={item.id}
                 type="button"
                 onClick={item.onClick}
-                className={`group relative flex items-center rounded-xl border px-2.5 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                className={`group relative flex items-center overflow-hidden rounded-xl border px-2.5 py-2 text-sm font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                   isCollapsed ? 'justify-center' : 'justify-start gap-2'
                 } ${buttonClasses}`}
                 aria-label={item.label}
@@ -436,11 +440,16 @@ function ProjectPage() {
                 <span className={`${iconBaseClasses} ${iconStateClasses}`}>
                   {item.icon}
                 </span>
-                {!isCollapsed && (
-                  <span className="flex-1 whitespace-nowrap text-left text-sm font-medium leading-none transition-opacity duration-200">
-                    {item.label}
-                  </span>
-                )}
+                <span
+                  className={`whitespace-nowrap text-left text-sm font-medium leading-none transition-[margin,max-width,opacity,transform] duration-300 ${
+                    isCollapsed
+                      ? 'pointer-events-none flex-none -translate-x-2 opacity-0 delay-0 w-0'
+                      : 'ml-2 flex-1 translate-x-0 opacity-100 delay-150'
+                  }`}
+                  aria-hidden={isCollapsed}
+                >
+                  {item.label}
+                </span>
                 {!isCollapsed && item.badge !== undefined && (
                   <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
                     {item.badge}
