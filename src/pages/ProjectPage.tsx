@@ -234,9 +234,10 @@ function ProjectPage() {
 
   const asideDynamicClasses = useMemo(
     () =>
-      `relative flex min-h-screen flex-shrink-0 flex-col border-r border-border bg-surface-muted/70 transition-all duration-300 ${
-        isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'
-      }`,
+      `relative flex min-h-screen flex-shrink-0 flex-col overflow-x-hidden
+      border-r border-border bg-surface-muted/70 transition-all duration-300
+      ${isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'}`
+    ,
     [isCollapsed],
   );
 
@@ -352,12 +353,15 @@ function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full overflow-hidden">
-        <aside className={asideDynamicClasses}>
-          <div className="relative border-b border-border/80 px-3 py-4">
-            <div className="flex min-h-[50px] items-center justify-start gap-3 transition-all duration-300">
+  <div className="flex min-h-screen w-full overflow-hidden">
+    <aside className={asideDynamicClasses}>
+      {/* HEADER (updated) */}
+      <div className="relative border-b border-border/80 px-3 py-4">
+        {/* leave space for the absolute toggle button on the right */}
+        <div className={`min-h-[50px] ${isCollapsed ? 'pr-0' : 'pr-12'}`}>
+          <div className="flex min-h-[50px] w-full items-center gap-3 transition-all duration-300">
             <div
-              className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-300 ${
+              className={`flex flex-col gap-1 overflow-hidden transition-[max-height,opacity] duration-130 ${
                 isCollapsed ? 'pointer-events-none max-h-0 opacity-0 flex-none' : 'flex-1 max-h-24 opacity-100'
               }`}
               aria-hidden={isCollapsed}
@@ -393,253 +397,258 @@ function ProjectPage() {
               )}
               <p className="text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Action Menu</p>
             </div>
-            </div>
-          </div>
-
-          <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
-            <button
-              type="button"
-              onClick={handleToggleCollapsed}
-              className={`${
-                isCollapsed
-                  ? `${navButtonBaseClasses} border-border/70 bg-surface/70 text-text-secondary hover:border-accent/70 hover:bg-accent/10 hover:text-accent`
-                  : `${navButtonBaseClasses} border-border/70 bg-surface/80 text-text-secondary hover:border-accent hover:bg-accent/10 hover:text-accent`
-              }`}
-              aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
-              title={isCollapsed ? 'Expand action menu' : undefined}
-            >
-              <span
-                className={`${navIconBaseClasses} text-text-muted transition-transform duration-300 ${
-                  isCollapsed ? 'group-hover:text-accent' : 'rotate-180 group-hover:text-accent'
-                }`}
-              >
-                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-                  <path
-                    fill="currentColor"
-                    d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
-                  />
-                </svg>
-              </span>
-              <span className={navLabelClasses} aria-hidden={isCollapsed}>
-                {isCollapsed ? 'Expand menu' : 'Collapse menu'}
-              </span>
-            </button>
-
-            {navigationItems.map((item) => {
-              const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
-              const buttonClasses = item.isActive
-                ? 'border-accent/40 bg-accent/15 text-accent'
-                : 'border-transparent text-text-secondary hover:border-border/80 hover:bg-surface/60 hover:text-text-primary';
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={item.onClick}
-                  className={`${navButtonBaseClasses} ${buttonClasses}`}
-                  aria-label={item.label}
-                  title={isCollapsed ? item.label : undefined}
-                >
-                  <span className={`${navIconBaseClasses} ${iconStateClasses}`}>{item.icon}</span>
-                  <span className={navLabelClasses} aria-hidden={isCollapsed}>
-                    {item.label}
-                  </span>
-                  {!isCollapsed && item.badge !== undefined && (
-                    <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
-                      {item.badge}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div
-            className={`flex flex-1 flex-col overflow-hidden px-2.5 pb-6 transition-opacity duration-300 ${
-              isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
-            }`}
-          >
-          <div className="flex items-center justify-start">
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
-          </div>
-
-          <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
-            {project.items.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-xs text-text-muted">
-                No items yet. Use the action menu to add your first board, card deck, or poster.
-              </p>
-            ) : (
-              project.items.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-2xl border border-border/80 bg-surface/70 px-3 py-2.5 text-sm text-text-secondary shadow-md shadow-black/10"
-                >
-                  <p className="font-semibold text-text-primary">{item.name}</p>
-                  <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </aside>
-
-      <section className="flex-1 overflow-y-auto bg-background px-6 py-10 lg:px-10">
-        {statusMessage && (
-          <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
-        )}
-
-        <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
-          <h2 className="text-2xl font-semibold text-text-primary">Workspace</h2>
-          <p className="mt-3 max-w-2xl text-sm text-text-secondary">
-            Your items appear here as you build them out. Use the action menu to browse assets, add new components, and manage your
-            project details. Drag-and-drop editing and placement tools will arrive in future updates.
-          </p>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            {project.items.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-border/80 bg-surface/60 p-4">
-                <p className="text-sm font-semibold text-text-primary">{item.name}</p>
-                <p className="mt-1 text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-                <p className="mt-2 text-xs text-text-muted">{item.variant}</p>
-                {item.customDetails && <p className="mt-2 text-xs text-text-muted">Custom: {item.customDetails}</p>}
-              </div>
-            ))}
-            {project.items.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface/60 p-12 text-center">
-                <p className="text-lg font-semibold text-text-primary">No items yet</p>
-                <p className="mt-2 max-w-sm text-sm text-text-muted">
-                  Add your first board, card deck, or poster using the action menu on the left.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleOpenItemDialog}
-                  className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
-                >
-                  Add an item
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
-        <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
-          <h3 className="text-xl font-semibold text-text-primary">Project Activity</h3>
-          <p className="mt-2 text-sm text-text-muted">
-            Keep track of asset uploads, layout tweaks, and collaborative notes. Future iterations will surface version history and
-            assignable tasks.
-          </p>
-            <ul className="mt-6 space-y-3 text-sm text-text-secondary">
-              <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
-                <span className="font-semibold text-text-primary">{project.name}</span> is ready for exploration. Start adding details
-                to each component.
-              </li>
-              <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
-                Upload reference art or icons to the image library to keep inspiration close at hand.
-              </li>
-            </ul>
-            <div className="mt-6 text-xs text-text-muted">
-              Looking for something else? <Link to="/" className="text-accent/80 transition hover:text-accent">Return to the dashboard</Link> to switch projects.
-            </div>
-        </div>
-      </section>
-
-      <NewItemDialog open={isItemDialogOpen} onClose={handleCloseItemDialog} onSubmit={handleAddItem} />
-
-      {isSearchPanelOpen && (
-        <div
-          className="fixed inset-0 z-40 flex items-start justify-end bg-black/40 backdrop-blur-sm"
-          onClick={handleCloseSearchPanel}
-          role="presentation"
+        {/* ABSOLUTE toggle button pinned to the header’s right edge */}
+        <button
+          type="button"
+          onClick={handleToggleCollapsed}
+          className={`absolute top-1/2 -translate-y-1/2
+                      group flex h-9 w-9 items-center justify-center rounded-xl border
+                      transition-[colors,transform,left,right] duration-300 focus:outline-none
+                      focus-visible:ring-2 focus-visible:ring-accent/40
+                      ${
+                        isCollapsed
+                          ? 'left-1/2 -translate-x-1/2 border-border/70 bg-surface/60 text-text-muted hover:border-accent/70 hover:bg-accent/10 hover:text-accent'
+                          : 'right-3 translate-x-0 border-border/70 bg-surface/80 text-text-muted hover:border-accent hover:bg-accent/10 hover:text-accent'
+                      }`}
+          aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
+          title={isCollapsed ? 'Expand action menu' : undefined}
         >
-          <div
-            className="m-4 w-full max-w-xl rounded-3xl border border-border bg-surface px-6 py-6 shadow-2xl shadow-black/40"
-            onClick={(event) => event.stopPropagation()}
+          <svg
+            viewBox="0 0 24 24"
+            className={`h-5 w-5 transition-transform duration-300 ${
+              isCollapsed ? 'group-hover:text-accent' : 'rotate-180 group-hover:text-accent'
+            }`}
+            aria-hidden="true"
           >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-text-primary">Search project</h2>
-                <p className="mt-1 text-sm text-text-muted">Find items and assets without leaving your workspace.</p>
-              </div>
-              <button
-                type="button"
-                onClick={handleCloseSearchPanel}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
-                aria-label="Close search"
-              >
-                ✕
-              </button>
-            </div>
+            <path
+              fill="currentColor"
+              d="M9.22 5.72a.75.75 0 011.06 0l5 5a.75.75 0 010 1.06l-5 5a.75.75 0 11-1.06-1.06L13.69 12 9.22 7.53a.75.75 0 010-1.06z"
+            />
+          </svg>
+        </button>
+      </div>
+      {/* /HEADER */}
 
-            <label className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 text-text-muted" aria-hidden="true">
-                <path
-                  fill="currentColor"
-                  d="M10 4a6 6 0 014.62 9.8l4.29 4.29a.75.75 0 11-1.06 1.06l-4.29-4.29A6 6 0 1110 4zm0 1.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"
-                />
-              </svg>
-              <input
-                value={searchQuery}
-                onChange={handleSearchChange}
-                placeholder="Search items or assets..."
-                className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
-                type="search"
-                autoFocus
-              />
-            </label>
+      <nav className="flex flex-col gap-1.5 px-2.5 py-3" aria-label="Project navigation">
+        {navigationItems.map((item) => {
+          const iconStateClasses = item.isActive ? 'text-accent' : 'text-text-muted group-hover:text-accent';
+          const buttonClasses = item.isActive
+            ? 'border-accent/40 bg-accent/15 text-accent'
+            : 'border-transparent text-text-secondary hover:border-border/80 hover:bg-surface/60 hover:text-text-primary';
 
-            <div className="mt-8 grid gap-8 md:grid-cols-2">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
-                <div className="mt-3 space-y-2">
-                  {filteredItems.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
-                      {hasSearchQuery ? 'No items match your search yet.' : 'Start typing to search the items in this project.'}
-                    </p>
-                  ) : (
-                    filteredItems.map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => handleSearchSelectItem(item.id)}
-                        className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
-                      >
-                        <span className="font-semibold text-text-primary">{item.name}</span>
-                        <span className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
+          return (
+            <button
+              key={item.id}
+              type="button"
+              onClick={item.onClick}
+              className={`${navButtonBaseClasses} ${buttonClasses}`}
+              aria-label={item.label}
+              title={isCollapsed ? item.label : undefined}
+            >
+              <span className={`${navIconBaseClasses} ${iconStateClasses}`}>{item.icon}</span>
+              <span className={navLabelClasses} aria-hidden={isCollapsed}>
+                {item.label}
+              </span>
+              {!isCollapsed && item.badge !== undefined && (
+                <span className="ml-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">
+                  {item.badge}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
 
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Assets</p>
-                <div className="mt-3 space-y-2">
-                  {filteredAssets.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
-                      {hasSearchQuery ? 'No assets match your search yet.' : 'Search to quickly locate artwork and references.'}
-                    </p>
-                  ) : (
-                    filteredAssets.map((asset) => (
-                      <button
-                        key={asset.id}
-                        type="button"
-                        onClick={() => handleSearchSelectAsset(asset.id)}
-                        className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
-                      >
-                        <span className="font-semibold text-text-primary">{asset.name}</span>
-                        <span className="text-xs text-text-muted">Library asset</span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
+      <div
+        className={`flex flex-1 flex-col overflow-hidden px-2.5 pb-6 transition-opacity duration-300 ${
+          isCollapsed ? 'pointer-events-none opacity-0' : 'opacity-100'
+        }`}
+      >
+        <div className="flex items-center justify-start">
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
         </div>
+
+        <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
+          {project.items.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-xs text-text-muted">
+              No items yet. Use the action menu to add your first board, card deck, or poster.
+            </p>
+          ) : (
+            project.items.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-border/80 bg-surface/70 px-3 py-2.5 text-sm text-text-secondary shadow-md shadow-black/10"
+              >
+                <p className="font-semibold text-text-primary">{item.name}</p>
+                <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </aside>
+
+    <section className="flex-1 overflow-y-auto bg-background px-6 py-10 lg:px-10">
+      {statusMessage && (
+        <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
       )}
 
-      <ImageAssetBrowser {...assetBrowserProps} />
-    </div>
-  );
+      <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
+        <h2 className="text-2xl font-semibold text-text-primary">Workspace</h2>
+        <p className="mt-3 max-w-2xl text-sm text-text-secondary">
+          Your items appear here as you build them out. Use the action menu to browse assets, add new components, and manage your
+          project details. Drag-and-drop editing and placement tools will arrive in future updates.
+        </p>
+        <div className="mt-6 grid gap-4 sm:grid-cols-2">
+          {project.items.map((item) => (
+            <div key={item.id} className="rounded-2xl border border-border/80 bg-surface/60 p-4">
+              <p className="text-sm font-semibold text-text-primary">{item.name}</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
+              <p className="mt-2 text-xs text-text-muted">{item.variant}</p>
+              {item.customDetails && <p className="mt-2 text-xs text-text-muted">Custom: {item.customDetails}</p>}
+            </div>
+          ))}
+          {project.items.length === 0 && (
+            <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface/60 p-12 text-center">
+              <p className="text-lg font-semibold text-text-primary">No items yet</p>
+              <p className="mt-2 max-w-sm text-sm text-text-muted">
+                Add your first board, card deck, or poster using the action menu on the left.
+              </p>
+              <button
+                type="button"
+                onClick={handleOpenItemDialog}
+                className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
+              >
+                Add an item
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
+        <h3 className="text-xl font-semibold text-text-primary">Project Activity</h3>
+        <p className="mt-2 text-sm text-text-muted">
+          Keep track of asset uploads, layout tweaks, and collaborative notes. Future iterations will surface version history and
+          assignable tasks.
+        </p>
+        <ul className="mt-6 space-y-3 text-sm text-text-secondary">
+          <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
+            <span className="font-semibold text-text-primary">{project.name}</span> is ready for exploration. Start adding details
+            to each component.
+          </li>
+          <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
+            Upload reference art or icons to the image library to keep inspiration close at hand.
+          </li>
+        </ul>
+        <div className="mt-6 text-xs text-text-muted">
+          Looking for something else? <Link to="/" className="text-accent/80 transition hover:text-accent">Return to the dashboard</Link> to switch projects.
+        </div>
+      </div>
+    </section>
+
+    <NewItemDialog open={isItemDialogOpen} onClose={handleCloseItemDialog} onSubmit={handleAddItem} />
+
+    {isSearchPanelOpen && (
+      <div
+        className="fixed inset-0 z-40 flex items-start justify-end bg-black/40 backdrop-blur-sm"
+        onClick={handleCloseSearchPanel}
+        role="presentation"
+      >
+        <div
+          className="m-4 w-full max-w-xl rounded-3xl border border-border bg-surface px-6 py-6 shadow-2xl shadow-black/40"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold text-text-primary">Search project</h2>
+              <p className="mt-1 text-sm text-text-muted">Find items and assets without leaving your workspace.</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseSearchPanel}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
+              aria-label="Close search"
+            >
+              ✕
+            </button>
+          </div>
+
+          <label className="mt-6 flex items-center gap-3 rounded-2xl border border-border bg-surface-muted/60 px-4 py-3">
+            <svg viewBox="0 0 24 24" className="h-5 w-5 text-text-muted" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M10 4a6 6 0 014.62 9.8l4.29 4.29a.75.75 0 11-1.06 1.06l-4.29-4.29A6 6 0 1110 4zm0 1.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z"
+              />
+            </svg>
+            <input
+              value={searchQuery}
+              onChange={handleSearchChange}
+              placeholder="Search items or assets..."
+              className="w-full bg-transparent text-sm text-text-primary placeholder:text-text-muted focus:outline-none"
+              type="search"
+              autoFocus
+            />
+          </label>
+
+          <div className="mt-8 grid gap-8 md:grid-cols-2">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
+              <div className="mt-3 space-y-2">
+                {filteredItems.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
+                    {hasSearchQuery ? 'No items match your search yet.' : 'Start typing to search the items in this project.'}
+                  </p>
+                ) : (
+                  filteredItems.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleSearchSelectItem(item.id)}
+                      className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+                    >
+                      <span className="font-semibold text-text-primary">{item.name}</span>
+                      <span className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Assets</p>
+              <div className="mt-3 space-y-2">
+                {filteredAssets.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-border/60 bg-surface-muted/40 px-4 py-4 text-xs text-text-muted">
+                    {hasSearchQuery ? 'No assets match your search yet.' : 'Search to quickly locate artwork and references.'}
+                  </p>
+                ) : (
+                  filteredAssets.map((asset) => (
+                    <button
+                      key={asset.id}
+                      type="button"
+                      onClick={() => handleSearchSelectAsset(asset.id)}
+                      className="flex w-full flex-col items-start gap-1 rounded-xl border border-border/70 bg-surface/70 px-4 py-3 text-left text-sm text-text-secondary transition hover:border-accent/70 hover:text-accent/80"
+                    >
+                      <span className="font-semibold text-text-primary">{asset.name}</span>
+                      <span className="text-xs text-text-muted">Library asset</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <ImageAssetBrowser {...assetBrowserProps} />
+  </div>
+);
+
 }
 
 export default ProjectPage;
