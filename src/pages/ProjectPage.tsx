@@ -346,8 +346,8 @@ function ProjectPage() {
       <aside className={asideDynamicClasses}>
         <div className="relative border-b border-border/80 px-3 py-4">
           <div
-            className={`flex min-h-[50px] items-center gap-3 transition-all duration-300 ${
-              isCollapsed ? 'justify-center' : 'justify-between'
+            className={`flex min-h-[50px] items-center transition-all duration-300 ${
+              isCollapsed ? 'justify-center gap-0' : 'justify-between gap-3'
             }`}
           >
             <div
