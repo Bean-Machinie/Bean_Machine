@@ -6,7 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
-  type PointerEvent as ReactPointerEvent,
+  type MouseEvent as ReactMouseEvent,
 } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -50,7 +50,6 @@ export default function ModalTransition({
   const [shouldRender, setShouldRender] = useState<boolean>(open);
   const overlayRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
-  const pointerDownOnOverlay = useRef(false);
   const previouslyFocusedElement = useRef<HTMLElement | null>(null);
 
   const panelDuration = prefersReducedMotion ? 150 : 250;
@@ -58,13 +57,28 @@ export default function ModalTransition({
   const easing = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
   useEffect(() => {
+    let animationFrame: number | null = null;
+    let enterTimer: number | null = null;
+    let exitTimer: number | null = null;
+
     if (open) {
       setShouldRender(true);
-      setPhase('entering');
-      const timer = window.setTimeout(() => {
-        setPhase('entered');
-      }, panelDuration);
-      return () => window.clearTimeout(timer);
+
+      animationFrame = window.requestAnimationFrame(() => {
+        setPhase('entering');
+        enterTimer = window.setTimeout(() => {
+          setPhase('entered');
+        }, panelDuration);
+      });
+
+      return () => {
+        if (animationFrame !== null) {
+          window.cancelAnimationFrame(animationFrame);
+        }
+        if (enterTimer !== null) {
+          window.clearTimeout(enterTimer);
+        }
+      };
     }
 
     if (phase === 'exited') {
@@ -72,12 +86,19 @@ export default function ModalTransition({
     }
 
     setPhase('exiting');
-    const timer = window.setTimeout(() => {
+    exitTimer = window.setTimeout(() => {
       setPhase('exited');
       setShouldRender(false);
     }, panelDuration);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      if (animationFrame !== null) {
+        window.cancelAnimationFrame(animationFrame);
+      }
+      if (exitTimer !== null) {
+        window.clearTimeout(exitTimer);
+      }
+    };
   }, [open, panelDuration, phase]);
 
   const handleKeyDown = useCallback(
@@ -174,17 +195,10 @@ export default function ModalTransition({
   const overlayClasses = overlayClassName ? `modal-overlay ${overlayClassName}` : 'modal-overlay';
   const panelClasses = panelClassName ? `modal-panel ${panelClassName}` : 'modal-panel';
 
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const handleOverlayClick = (event: ReactMouseEvent<HTMLDivElement>) => {
     if (event.target === overlayRef.current) {
-      pointerDownOnOverlay.current = true;
-    }
-  };
-
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (pointerDownOnOverlay.current && event.target === overlayRef.current) {
       onClose();
     }
-    pointerDownOnOverlay.current = false;
   };
 
   return createPortal(
@@ -194,8 +208,7 @@ export default function ModalTransition({
       data-state={stateAttribute}
       data-motion={motionAttribute}
       style={panelInlineStyles}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
+      onClick={handleOverlayClick}
     >
       <div
         ref={panelRef}
