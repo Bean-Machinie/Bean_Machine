@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import AvatarUploader from '../components/AvatarUploader';
@@ -32,6 +32,10 @@ export default function ProfilePage() {
   const initialSection = (searchParams.get('section') as SectionId | null) ?? 'profile';
   const emailFallbackName = useMemo(() => user?.email?.split('@')[0] ?? '', [user?.email]);
   const [selectedSection, setSelectedSection] = useState<SectionId>(initialSection);
+  const sectionHeadingRefs = useRef<Record<SectionId, HTMLHeadingElement | null>>({
+    profile: null,
+    appearance: null,
+  });
   const [profile, setProfile] = useState<Profile | null>(null);
   const [displayName, setDisplayName] = useState(emailFallbackName);
   const [bio, setBio] = useState('');
@@ -49,6 +53,11 @@ export default function ProfilePage() {
     const section = (searchParams.get('section') as SectionId | null) ?? 'profile';
     setSelectedSection(section);
   }, [searchParams]);
+
+  useEffect(() => {
+    const heading = sectionHeadingRefs.current[selectedSection];
+    heading?.focus();
+  }, [selectedSection]);
 
   useEffect(() => {
     let isActive = true;
@@ -106,16 +115,18 @@ export default function ProfilePage() {
   };
 
   const handleSectionChange = (section: SectionId) => {
+    if (section === selectedSection) {
+      return;
+    }
+
     setSelectedSection(section);
-    setSearchParams((params) => {
-      const next = new URLSearchParams(params);
-      if (section === 'profile') {
-        next.delete('section');
-      } else {
-        next.set('section', section);
-      }
-      return next;
-    });
+    const next = new URLSearchParams(searchParams);
+    if (section === 'profile') {
+      next.delete('section');
+    } else {
+      next.set('section', section);
+    }
+    setSearchParams(next, { replace: true });
   };
 
   const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
@@ -192,7 +203,15 @@ export default function ProfilePage() {
           {selectedSection === 'profile' ? (
             <div className="flex flex-col gap-8">
               <div className="border-b border-border pb-4">
-                <h3 className="text-2xl font-semibold text-text-primary">Profile details</h3>
+                <h3
+                  ref={(node) => {
+                    sectionHeadingRefs.current.profile = node;
+                  }}
+                  tabIndex={-1}
+                  className="text-2xl font-semibold text-text-primary"
+                >
+                  Profile details
+                </h3>
                 <p className="mt-2 text-sm text-text-secondary">Tell others about your creative persona.</p>
               </div>
 
@@ -284,7 +303,15 @@ export default function ProfilePage() {
           ) : (
             <div className="flex flex-col gap-6">
               <div className="border-b border-border pb-4">
-                <h3 className="text-2xl font-semibold text-text-primary">Theme preferences</h3>
+                <h3
+                  ref={(node) => {
+                    sectionHeadingRefs.current.appearance = node;
+                  }}
+                  tabIndex={-1}
+                  className="text-2xl font-semibold text-text-primary"
+                >
+                  Theme preferences
+                </h3>
                 <p className="mt-2 text-sm text-text-secondary">
                   Pick a preset to instantly update the interface colors. Previews show how panels and accents will look.
                 </p>
