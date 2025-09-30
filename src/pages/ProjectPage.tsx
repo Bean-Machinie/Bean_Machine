@@ -347,7 +347,7 @@ function ProjectPage() {
         <div className="relative border-b border-border/80 px-3 py-4">
           <div
             className={`flex min-h-[50px] items-center transition-all duration-300 ${
-              isCollapsed ? 'justify-center gap-0' : 'justify-between gap-3'
+              isCollapsed ? 'justify-start gap-2' : 'justify-between gap-3'
             }`}
           >
             <div
@@ -390,7 +390,7 @@ function ProjectPage() {
             <button
               type="button"
               onClick={handleToggleCollapsed}
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition-all duration-300 hover:border-accent hover:bg-accent/10 hover:text-accent"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-surface/80 text-text-secondary shadow-sm shadow-black/10 transition-all duration-300 hover:border-accent hover:bg-accent/10 hover:text-accent"
               aria-label={isCollapsed ? 'Expand action menu' : 'Collapse action menu'}
             >
               <svg
