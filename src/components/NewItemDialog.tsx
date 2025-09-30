@@ -1,8 +1,9 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useId, useMemo, useRef, useState } from 'react';
 
 import { ItemInput, ProjectItemType } from '../context/ProjectContext';
 import { ITEM_TYPE_DEFINITIONS } from '../constants/itemOptions';
 import CloseButton from './CloseButton';
+import ModalTransition from './ModalTransition';
 
 interface NewItemDialogProps {
   open: boolean;
@@ -19,6 +20,8 @@ const defaultState = {
 
 function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
   const [formState, setFormState] = useState(defaultState);
+  const titleId = useId();
+  const initialFieldRef = useRef<HTMLInputElement | null>(null);
 
   const typeDefinition = useMemo(
     () => ITEM_TYPE_DEFINITIONS.find((definition) => definition.id === formState.itemType) ?? ITEM_TYPE_DEFINITIONS[0],
@@ -67,25 +70,30 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
   const showCustomField =
     formState.variant.toLowerCase().includes('custom') || formState.itemType === 'custom';
 
-  if (!open) {
-    return null;
-  }
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/80 p-4">
-      <div className="w-full max-w-2xl rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60">
-        <div className="flex items-center justify-between border-b border-border/70 px-6 py-5">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.35em] text-accent/70">New Item</p>
-            <h2 className="mt-2 text-xl font-semibold text-text-primary">Add to this project</h2>
-          </div>
-          <CloseButton onClick={handleClose} label="Close new item dialog" className="ml-2 shrink-0" />
+    <ModalTransition
+      open={open}
+      onClose={handleClose}
+      labelledBy={titleId}
+      overlayClassName="bg-overlay/80 p-4"
+      panelClassName="w-full max-w-2xl rounded-3xl border border-border bg-surface-elevated/95 shadow-2xl shadow-black/60 focus:outline-none"
+      initialFocusRef={initialFieldRef}
+    >
+      <div className="flex items-center justify-between border-b border-border/70 px-6 py-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.35em] text-accent/70">New Item</p>
+          <h2 id={titleId} className="mt-2 text-xl font-semibold text-text-primary">
+            Add to this project
+          </h2>
         </div>
+        <CloseButton onClick={handleClose} label="Close new item dialog" className="ml-2 shrink-0" />
+      </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
+      <form onSubmit={handleSubmit} className="space-y-6 px-6 py-5">
           <label className="block text-sm font-semibold text-text-secondary">
             Item title
             <input
+              ref={initialFieldRef}
               value={formState.name}
               onChange={(event) => setFormState((state) => ({ ...state, name: event.target.value }))}
               placeholder="e.g. Quest Log Poster"
@@ -170,8 +178,7 @@ function NewItemDialog({ open, onClose, onSubmit }: NewItemDialogProps) {
             </div>
           </div>
         </form>
-      </div>
-    </div>
+    </ModalTransition>
   );
 }
 

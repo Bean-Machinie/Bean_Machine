@@ -9,6 +9,9 @@ import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import { promises as fsPromises } from 'node:fs';
+import multer from 'multer';
 import { z } from 'zod';
 
 type DbUser = {
@@ -18,6 +21,17 @@ type DbUser = {
   created_at: string;
   email_verified_at: string | null;
   verification_token: string | null;
+};
+
+type DbUserProfile = {
+  user_id: string;
+  display_name: string | null;
+  bio: string | null;
+  avatar_url: string | null;
+  social_website: string | null;
+  social_discord: string | null;
+  social_twitter: string | null;
+  updated_at: string;
 };
 
 type DbProject = {
@@ -47,11 +61,26 @@ type DbProjectAsset = {
   created_at: string;
 };
 
+type ApiSocialLinks = {
+  website?: string;
+  discord?: string;
+  twitter?: string;
+};
+
+type ApiProfile = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  bio: string | null;
+  avatarUrl: string | null;
+  social: ApiSocialLinks;
+};
+
 /* eslint-disable @typescript-eslint/no-namespace */
 declare global {
   namespace Express {
     interface Request {
-      user?: { id: string; email: string };
+      user?: ApiProfile;
     }
   }
 }
@@ -64,6 +93,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-me';
 const COOKIE_NAME = 'session';
 const TOKEN_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const DATABASE_FILE = process.env.DATABASE_FILE ?? path.join(process.cwd(), 'auth.db');
+const UPLOAD_ROOT = path.join(process.cwd(), 'uploads');
+const AVATAR_UPLOAD_DIR = path.join(UPLOAD_ROOT, 'avatars');
+
+fs.mkdirSync(AVATAR_UPLOAD_DIR, { recursive: true });
 
 // Initialise a simple SQLite database to persist users locally.
 const db = new Database(DATABASE_FILE);
@@ -77,6 +110,18 @@ db.prepare(
     created_at TEXT NOT NULL,
     email_verified_at TEXT,
     verification_token TEXT
+  )`
+).run();
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    display_name TEXT,
+    bio TEXT,
+    avatar_url TEXT,
+    social_website TEXT,
+    social_discord TEXT,
+    social_twitter TEXT,
+    updated_at TEXT NOT NULL
   )`
 ).run();
 db.prepare(
@@ -112,6 +157,27 @@ db.prepare(
 
 const selectProjectsByUserStatement = db.prepare(
   `SELECT * FROM projects WHERE user_id = ? ORDER BY datetime(updated_at) DESC`,
+);
+
+const selectProfileByUserIdStatement = db.prepare(
+  `SELECT * FROM user_profiles WHERE user_id = ?`,
+);
+
+const insertProfileStatement = db.prepare(
+  `INSERT INTO user_profiles (user_id, display_name, bio, avatar_url, social_website, social_discord, social_twitter, updated_at)
+   VALUES (?, NULL, NULL, NULL, NULL, NULL, NULL, ?)`,
+);
+
+const updateProfileStatement = db.prepare(
+  `UPDATE user_profiles
+   SET display_name = ?,
+       bio = ?,
+       avatar_url = ?,
+       social_website = ?,
+       social_discord = ?,
+       social_twitter = ?,
+       updated_at = ?
+   WHERE user_id = ?`,
 );
 
 const selectProjectByIdStatement = db.prepare(
@@ -267,6 +333,7 @@ app.use(
 );
 app.use(express.json());
 app.use(cookieParser());
+app.use('/uploads', express.static(UPLOAD_ROOT));
 
 const registerSchema = z.object({
   email: z.string().email('Please provide a valid email.'),
@@ -284,6 +351,30 @@ const loginSchema = z.object({
   email: z.string().email('Please provide a valid email.'),
   password: z.string().min(1, 'Password is required.'),
 });
+
+const socialLinksSchema = z
+  .object({
+    website: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || /^https?:\/\//.test(value), 'Please enter a valid URL (include http:// or https://).'),
+    discord: z.string().trim().max(120, 'Discord username must be 120 characters or fewer.').optional(),
+    twitter: z.string().trim().max(80, 'Handle must be 80 characters or fewer.').optional(),
+  })
+  .partial();
+
+const profileUpdateSchema = z
+  .object({
+    displayName: z.string().trim().max(80, 'Display name must be 80 characters or fewer.').optional(),
+    bio: z.string().trim().max(500, 'Bio must be 500 characters or fewer.').optional(),
+    avatarUrl: z.string().trim().optional(),
+    social: socialLinksSchema.optional(),
+  })
+  .refine(
+    (data) => data.displayName !== undefined || data.bio !== undefined || data.avatarUrl !== undefined || data.social !== undefined,
+    { message: 'Provide at least one field to update.' }
+  );
 
 const projectItemTypeSchema = z.enum(['board', 'cardDeck', 'questPoster', 'custom']);
 
@@ -354,6 +445,82 @@ function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
 
+const AVATAR_FILE_SIZE_LIMIT = 4 * 1024 * 1024; // 4 MB
+
+function normalizeOptionalString(value: string | null | undefined) {
+  if (value === undefined || value === null) {
+    return value ?? undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? null : trimmed;
+}
+
+function resolveAvatarExtension(mime: string, originalName: string) {
+  switch (mime) {
+    case 'image/png':
+      return '.png';
+    case 'image/jpeg':
+      return '.jpg';
+    case 'image/gif':
+      return '.gif';
+    case 'image/webp':
+      return '.webp';
+    default: {
+      const ext = path.extname(originalName);
+      return ext || '.img';
+    }
+  }
+}
+
+function buildAvatarPublicPath(filename: string) {
+  return `/uploads/avatars/${filename}`;
+}
+
+async function deleteAvatarFile(avatarUrl: string | null | undefined) {
+  if (!avatarUrl) {
+    return;
+  }
+
+  const relativePath = avatarUrl.startsWith('/') ? avatarUrl.slice(1) : avatarUrl;
+  const absolutePath = path.resolve(process.cwd(), relativePath);
+
+  if (!absolutePath.startsWith(UPLOAD_ROOT)) {
+    return;
+  }
+
+  try {
+    await fsPromises.unlink(absolutePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      console.warn('Failed to remove previous avatar file', error);
+    }
+  }
+}
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    cb(null, AVATAR_UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const extension = resolveAvatarExtension(file.mimetype, file.originalname);
+    const uniqueName = `${req.user!.id}-${Date.now()}${extension}`;
+    cb(null, uniqueName);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: AVATAR_FILE_SIZE_LIMIT },
+  fileFilter: (_req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image uploads are allowed.'));
+    }
+
+    cb(null, true);
+  },
+});
+
 function findUserByEmail(email: string): DbUser | undefined {
   const statement = db.prepare('SELECT * FROM users WHERE email = ?');
   return statement.get(normalizeEmail(email)) as DbUser | undefined;
@@ -367,6 +534,52 @@ function findUserById(id: string): DbUser | undefined {
 function findUserByToken(token: string): DbUser | undefined {
   const statement = db.prepare('SELECT * FROM users WHERE verification_token = ?');
   return statement.get(token) as DbUser | undefined;
+}
+
+function ensureProfileForUser(userId: string): DbUserProfile {
+  const existing = selectProfileByUserIdStatement.get(userId) as DbUserProfile | undefined;
+  if (existing) {
+    return existing;
+  }
+
+  const now = new Date().toISOString();
+  insertProfileStatement.run(userId, now);
+
+  return {
+    user_id: userId,
+    display_name: null,
+    bio: null,
+    avatar_url: null,
+    social_website: null,
+    social_discord: null,
+    social_twitter: null,
+    updated_at: now,
+  } satisfies DbUserProfile;
+}
+
+function mapProfile(user: DbUser, profile: DbUserProfile): ApiProfile {
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: profile.display_name,
+    bio: profile.bio,
+    avatarUrl: profile.avatar_url,
+    social: {
+      ...(profile.social_website ? { website: profile.social_website } : {}),
+      ...(profile.social_discord ? { discord: profile.social_discord } : {}),
+      ...(profile.social_twitter ? { twitter: profile.social_twitter } : {}),
+    },
+  } satisfies ApiProfile;
+}
+
+function loadProfile(userId: string): ApiProfile | null {
+  const user = findUserById(userId);
+  if (!user) {
+    return null;
+  }
+
+  const profile = ensureProfileForUser(user.id);
+  return mapProfile(user, profile);
 }
 
 async function sendVerificationEmail(email: string, token: string) {
@@ -405,7 +618,13 @@ function authenticate(req: Request, res: Response, next: NextFunction) {
       return next();
     }
 
-    req.user = { id: user.id, email: user.email };
+    const profile = loadProfile(user.id);
+    if (!profile) {
+      clearAuthCookie(res);
+      return next();
+    }
+
+    req.user = profile;
   } catch {
     clearAuthCookie(res);
   }
@@ -451,6 +670,14 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error: unknown) {
     console.error('Failed to insert user', error);
     return res.status(500).json({ message: 'Could not create account. Please try again.' });
+  }
+
+  try {
+    insertProfileStatement.run(id, now);
+  } catch (error: unknown) {
+    console.error('Failed to create user profile', error);
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    return res.status(500).json({ message: 'Could not create account profile. Please try again.' });
   }
 
   try {
@@ -509,7 +736,12 @@ app.post('/api/auth/login', async (req, res) => {
   const token = createJwt({ id: user.id, email: user.email });
   setAuthCookie(res, token);
 
-  return res.json({ user: { id: user.id, email: user.email } });
+  const profile = loadProfile(user.id);
+  if (!profile) {
+    return res.status(500).json({ message: 'Could not load user profile.' });
+  }
+
+  return res.json({ user: profile });
 });
 
 app.post('/api/auth/logout', (_req, res) => {
@@ -519,6 +751,131 @@ app.post('/api/auth/logout', (_req, res) => {
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
   return res.json({ user: req.user });
+});
+
+app.get('/api/profile', requireAuth, (req, res) => {
+  const profile = loadProfile(req.user!.id);
+  if (!profile) {
+    return res.status(404).json({ message: 'Profile not found.' });
+  }
+
+  req.user = profile;
+  return res.json({ profile });
+});
+
+app.patch('/api/profile', requireAuth, (req, res) => {
+  const parsed = profileUpdateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ message: parsed.error.issues[0]?.message ?? 'Invalid input.' });
+  }
+
+  const userId = req.user!.id;
+  const user = findUserById(userId);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found.' });
+  }
+
+  const existingProfile = ensureProfileForUser(userId);
+  const now = new Date().toISOString();
+
+  const updatedProfile: DbUserProfile = {
+    ...existingProfile,
+    updated_at: now,
+  };
+
+  const { displayName, bio, avatarUrl, social } = parsed.data;
+
+  if (displayName !== undefined) {
+    updatedProfile.display_name = normalizeOptionalString(displayName) ?? null;
+  }
+
+  if (bio !== undefined) {
+    updatedProfile.bio = normalizeOptionalString(bio) ?? null;
+  }
+
+  if (avatarUrl !== undefined) {
+    updatedProfile.avatar_url = normalizeOptionalString(avatarUrl) ?? null;
+  }
+
+  if (social) {
+    if (social.website !== undefined) {
+      updatedProfile.social_website = normalizeOptionalString(social.website ?? null) ?? null;
+    }
+    if (social.discord !== undefined) {
+      updatedProfile.social_discord = normalizeOptionalString(social.discord ?? null) ?? null;
+    }
+    if (social.twitter !== undefined) {
+      updatedProfile.social_twitter = normalizeOptionalString(social.twitter ?? null) ?? null;
+    }
+  }
+
+  updateProfileStatement.run(
+    updatedProfile.display_name,
+    updatedProfile.bio,
+    updatedProfile.avatar_url,
+    updatedProfile.social_website,
+    updatedProfile.social_discord,
+    updatedProfile.social_twitter,
+    updatedProfile.updated_at,
+    userId,
+  );
+
+  const apiProfile = mapProfile(user, updatedProfile);
+  req.user = apiProfile;
+
+  return res.json({ profile: apiProfile });
+});
+
+app.post('/api/profile/avatar', requireAuth, (req, res) => {
+  avatarUpload.single('avatar')(req, res, async (error) => {
+    if (error) {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'Avatar images must be 4MB or smaller.' });
+      }
+
+      return res.status(400).json({ message: (error as Error).message || 'Could not upload avatar.' });
+    }
+
+    const file = (req as Request & { file?: Express.Multer.File }).file;
+    if (!file) {
+      return res.status(400).json({ message: 'Please attach an image named "avatar".' });
+    }
+
+    const userId = req.user!.id;
+    const user = findUserById(userId);
+    if (!user) {
+      await deleteAvatarFile(buildAvatarPublicPath(file.filename));
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    const existingProfile = ensureProfileForUser(userId);
+    await deleteAvatarFile(existingProfile.avatar_url);
+
+    const publicPath = buildAvatarPublicPath(file.filename);
+    const now = new Date().toISOString();
+
+    updateProfileStatement.run(
+      existingProfile.display_name,
+      existingProfile.bio,
+      publicPath,
+      existingProfile.social_website,
+      existingProfile.social_discord,
+      existingProfile.social_twitter,
+      now,
+      userId,
+    );
+
+    const updatedProfile: DbUserProfile = {
+      ...existingProfile,
+      avatar_url: publicPath,
+      updated_at: now,
+    };
+
+    const apiProfile = mapProfile(user, updatedProfile);
+    req.user = apiProfile;
+
+    return res.json({ avatarUrl: publicPath, profile: apiProfile });
+  });
 });
 
 app.get('/api/projects', requireAuth, (req, res) => {

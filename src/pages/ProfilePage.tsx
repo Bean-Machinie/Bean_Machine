@@ -1,36 +1,39 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
+import AvatarUploader from '../components/AvatarUploader';
+import { SparkleIcon, UserIcon } from '../components/icons';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { type Profile, getProfile, updateProfile } from '../lib/profile';
 
 const NAV_ITEMS = [
   {
     id: 'profile',
     label: 'User Profile',
     description: 'Update your information and avatar.',
+    icon: UserIcon,
   },
   {
     id: 'appearance',
     label: 'Appearance',
     description: 'Choose the theme that suits your world.',
+    icon: SparkleIcon,
   },
 ] as const;
 
-const PRESET_AVATARS = ['🐉', '🎲', '🧙', '🛡️', '🗺️', '⚔️'];
-
 type SectionId = (typeof NAV_ITEMS)[number]['id'];
-type AvatarState = { type: 'preset'; value: string } | { type: 'upload'; value: string };
-
 type SocialKey = 'website' | 'discord' | 'twitter';
 
 export default function ProfilePage() {
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
+  const { user, refreshUser } = useAuth();
   const { themeId, availableThemes, setThemeId } = useTheme();
-  const defaultName = useMemo(() => user?.email?.split('@')[0] ?? '', [user?.email]);
-  const [selectedSection, setSelectedSection] = useState<SectionId>('profile');
-  const [displayName, setDisplayName] = useState(defaultName);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSection = (searchParams.get('section') as SectionId | null) ?? 'profile';
+  const emailFallbackName = useMemo(() => user?.email?.split('@')[0] ?? '', [user?.email]);
+  const [selectedSection, setSelectedSection] = useState<SectionId>(initialSection);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [displayName, setDisplayName] = useState(emailFallbackName);
   const [bio, setBio] = useState('');
   const [socialLinks, setSocialLinks] = useState<Record<SocialKey, string>>({
     website: '',
@@ -38,14 +41,51 @@ export default function ProfilePage() {
     twitter: '',
   });
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [avatar, setAvatar] = useState<AvatarState>({ type: 'preset', value: PRESET_AVATARS[0] });
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
 
   useEffect(() => {
-    setDisplayName(defaultName);
-  }, [defaultName]);
+    const section = (searchParams.get('section') as SectionId | null) ?? 'profile';
+    setSelectedSection(section);
+  }, [searchParams]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const hydrateProfile = async () => {
+      try {
+        setLoadingProfile(true);
+        const profileData = await getProfile();
+        if (!isActive) {
+          return;
+        }
+
+        setProfile(profileData);
+        setDisplayName(profileData.displayName ?? emailFallbackName);
+        setBio(profileData.bio ?? '');
+        setSocialLinks({
+          website: profileData.social.website ?? '',
+          discord: profileData.social.discord ?? '',
+          twitter: profileData.social.twitter ?? '',
+        });
+      } catch (error) {
+        if (isActive) {
+          setErrorMessage((error as Error).message);
+        }
+      } finally {
+        if (isActive) {
+          setLoadingProfile(false);
+        }
+      }
+    };
+
+    void hydrateProfile();
+
+    return () => {
+      isActive = false;
+    };
+  }, [emailFallbackName]);
 
   useEffect(() => {
     if (!statusMessage) {
@@ -56,14 +96,6 @@ export default function ProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [statusMessage]);
 
-  useEffect(() => {
-    return () => {
-      if (uploadedImage) {
-        URL.revokeObjectURL(uploadedImage);
-      }
-    };
-  }, [uploadedImage]);
-
   if (!user) {
     return null;
   }
@@ -73,46 +105,44 @@ export default function ProfilePage() {
     setSocialLinks((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleAvatarClick = () => {
-    fileInputRef.current?.click();
+  const handleSectionChange = (section: SectionId) => {
+    setSelectedSection(section);
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      if (section === 'profile') {
+        next.delete('section');
+      } else {
+        next.set('section', section);
+      }
+      return next;
+    });
   };
 
-  const handleAvatarUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
-    const previewUrl = URL.createObjectURL(file);
-    if (uploadedImage) {
-      URL.revokeObjectURL(uploadedImage);
-    }
-
-    setUploadedImage(previewUrl);
-    setAvatar({ type: 'upload', value: previewUrl });
-  };
-
-  const handlePresetAvatar = (icon: string) => {
-    if (uploadedImage) {
-      URL.revokeObjectURL(uploadedImage);
-      setUploadedImage(null);
-    }
-
-    setAvatar({ type: 'preset', value: icon });
-  };
-
-  const handleSaveProfile = (event: FormEvent<HTMLFormElement>) => {
+  const handleSaveProfile = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setStatusMessage('Your profile updates are saved for this session.');
-  };
-
-  const handleSignOut = async () => {
-    setIsSigningOut(true);
+    setSaving(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
     try {
-      await signOut();
-      navigate('/');
+      const updated = await updateProfile({
+        displayName,
+        bio,
+        social: socialLinks,
+      });
+      setProfile(updated);
+      setDisplayName(updated.displayName ?? '');
+      setBio(updated.bio ?? '');
+      setSocialLinks({
+        website: updated.social.website ?? '',
+        discord: updated.social.discord ?? '',
+        twitter: updated.social.twitter ?? '',
+      });
+      setStatusMessage('Profile updated successfully.');
+      await refreshUser();
+    } catch (error) {
+      setErrorMessage((error as Error).message);
     } finally {
-      setIsSigningOut(false);
+      setSaving(false);
     }
   };
 
@@ -135,19 +165,24 @@ export default function ProfilePage() {
         <aside className="flex w-full flex-col gap-3 lg:max-w-xs">
           {NAV_ITEMS.map((item) => {
             const isActive = selectedSection === item.id;
+            const Icon = item.icon;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setSelectedSection(item.id)}
-                className={`w-full rounded-2xl border px-5 py-4 text-left transition ${
+                onClick={() => handleSectionChange(item.id)}
+                className={`flex w-full items-center justify-between rounded-2xl border px-5 py-4 text-left transition ${
                   isActive
                     ? 'border-accent bg-surface shadow-sm'
                     : 'border-border bg-surface-muted/60 hover:border-accent/60 hover:bg-surface'
                 }`}
+                aria-pressed={isActive}
               >
-                <p className="text-base font-semibold text-text-primary">{item.label}</p>
-                <p className="mt-1 text-xs text-text-secondary">{item.description}</p>
+                <div className="flex flex-col gap-1">
+                  <p className="text-base font-semibold text-text-primary">{item.label}</p>
+                  <p className="text-xs text-text-secondary">{item.description}</p>
+                </div>
+                <Icon className="ml-4 h-6 w-6 text-text-secondary" />
               </button>
             );
           })}
@@ -156,101 +191,61 @@ export default function ProfilePage() {
         <section className="flex-1 rounded-2xl border border-border bg-surface px-6 py-8 shadow-sm">
           {selectedSection === 'profile' ? (
             <div className="flex flex-col gap-8">
-              <div className="space-y-1">
-                <h3 className="text-xl font-semibold text-text-primary">Profile details</h3>
-                <p className="text-sm text-text-secondary">Tell others about your creative persona.</p>
+              <div className="border-b border-border pb-4">
+                <h3 className="text-2xl font-semibold text-text-primary">Profile details</h3>
+                <p className="mt-2 text-sm text-text-secondary">Tell others about your creative persona.</p>
               </div>
 
-              <form onSubmit={handleSaveProfile} className="flex flex-col gap-8">
-                <div className="flex flex-col gap-6 md:flex-row md:items-center">
-                  <div className="flex flex-col items-center gap-3 md:items-start">
-                    <button
-                      type="button"
-                      onClick={handleAvatarClick}
-                      className="group relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-muted text-5xl shadow-sm transition hover:border-accent hover:shadow-lg"
-                    >
-                      {avatar.type === 'upload' ? (
-                        <img src={avatar.value} alt="Custom avatar" className="h-full w-full object-cover" />
-                      ) : (
-                        <span>{avatar.value}</span>
-                      )}
-                      <span className="absolute bottom-3 left-1/2 flex -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white opacity-0 transition group-hover:opacity-100">
-                        Change
-                      </span>
-                    </button>
+              {loadingProfile ? (
+                <p className="text-sm text-text-secondary">Loading your profile…</p>
+              ) : (
+                <form onSubmit={handleSaveProfile} className="flex flex-col gap-8" noValidate>
+                  <AvatarUploader
+                    avatarUrl={profile?.avatarUrl}
+                    displayName={displayName || emailFallbackName}
+                    onAvatarChange={(updatedProfile) => {
+                      setProfile(updatedProfile);
+                      setErrorMessage(null);
+                      setStatusMessage('Avatar updated.');
+                    }}
+                  />
 
-                    <div className="flex flex-wrap justify-center gap-2 md:justify-start">
-                      {PRESET_AVATARS.map((icon) => {
-                        const isCurrent = avatar.type === 'preset' && avatar.value === icon;
-                        return (
-                          <button
-                            key={icon}
-                            type="button"
-                            onClick={() => handlePresetAvatar(icon)}
-                            className={`inline-flex h-10 w-10 items-center justify-center rounded-full border text-xl transition ${
-                              isCurrent
-                                ? 'border-accent bg-accent/10 text-accent'
-                                : 'border-border text-text-secondary hover:border-accent/60 hover:text-accent'
-                            }`}
-                            aria-pressed={isCurrent}
-                          >
-                            <span>{icon}</span>
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={handleAvatarClick}
-                        className="inline-flex items-center justify-center rounded-full border border-border px-3 py-2 text-xs font-semibold text-text-secondary transition hover:border-accent hover:text-accent"
-                      >
-                        Upload image
-                      </button>
-                    </div>
+                  <div className="flex flex-col gap-6">
+                    <label className="flex flex-col gap-2 text-sm">
+                      <span className="font-medium text-text-secondary">Display name</span>
+                      <input
+                        type="text"
+                        value={displayName}
+                        onChange={(event) => setDisplayName(event.target.value)}
+                        placeholder="Call sign or alias"
+                        className="rounded-xl border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      />
+                    </label>
 
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleAvatarUpload}
-                    />
+                    <label className="flex flex-col gap-2 text-sm">
+                      <span className="font-medium text-text-secondary">Email</span>
+                      <input
+                        type="email"
+                        value={user.email}
+                        readOnly
+                        className="cursor-not-allowed rounded-xl border border-border bg-surface-muted px-3 py-2 text-base text-text-secondary"
+                      />
+                    </label>
+
+                    <label className="flex flex-col gap-2 text-sm">
+                      <span className="font-medium text-text-secondary">Bio</span>
+                      <textarea
+                        value={bio}
+                        onChange={(event) => setBio(event.target.value)}
+                        rows={4}
+                        placeholder="Share a few sentences about your creative style."
+                        className="rounded-xl border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                      />
+                    </label>
                   </div>
 
-                  <div className="flex flex-col gap-1 text-center text-sm text-text-secondary md:text-left">
-                    <span className="font-semibold text-text-primary">Account email</span>
-                    <span className="break-all">{user.email}</span>
-                    <span className="text-xs text-text-muted">Used for sign in and important updates.</span>
-                  </div>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <label className="flex flex-col gap-2 text-sm">
-                    <span className="font-medium text-text-secondary">Display name</span>
-                    <input
-                      type="text"
-                      value={displayName}
-                      onChange={(event) => setDisplayName(event.target.value)}
-                      placeholder="Call sign or alias"
-                      className="rounded border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                    />
-                  </label>
-
-                  <label className="md:col-span-2 flex flex-col gap-2 text-sm">
-                    <span className="font-medium text-text-secondary">Bio</span>
-                    <textarea
-                      value={bio}
-                      onChange={(event) => setBio(event.target.value)}
-                      rows={4}
-                      placeholder="Share a few sentences about your creative style."
-                      className="rounded border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
-                    />
-                    <span className="text-xs text-text-muted">This will appear on collaborative documents.</span>
-                  </label>
-                </div>
-
-                <div className="space-y-3">
-                  <h4 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">Social accounts</h4>
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex flex-col gap-4">
+                    <h4 className="text-sm font-semibold uppercase tracking-wide text-text-secondary">Social accounts</h4>
                     {socialFields.map((field) => (
                       <label key={field.key} className="flex flex-col gap-2 text-sm">
                         <span className="font-medium text-text-secondary">{field.label}</span>
@@ -259,39 +254,38 @@ export default function ProfilePage() {
                           value={socialLinks[field.key]}
                           onChange={handleSocialChange(field.key)}
                           placeholder={field.placeholder}
-                          className="rounded border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
+                          className="rounded-xl border border-border bg-background px-3 py-2 text-base text-text-primary focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/30"
                         />
                       </label>
                     ))}
                   </div>
-                </div>
 
-                {statusMessage && <p className="text-sm font-semibold text-accent">{statusMessage}</p>}
+                  {errorMessage && (
+                    <p className="text-sm font-semibold text-red-500" role="alert">
+                      {errorMessage}
+                    </p>
+                  )}
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center rounded bg-accent px-5 py-2.5 text-sm font-semibold text-text-inverse transition hover:bg-accent/90"
-                  >
-                    Save changes
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    disabled={isSigningOut}
-                    className="inline-flex items-center justify-center rounded border border-border px-5 py-2.5 text-sm font-semibold text-text-secondary transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    {isSigningOut ? 'Signing out…' : 'Sign out'}
-                  </button>
-                </div>
-              </form>
+                  <div className="flex flex-col gap-3 border-t border-border/80 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm" aria-live="polite">
+                      {statusMessage && <span className="font-semibold text-accent">{statusMessage}</span>}
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="inline-flex items-center justify-center rounded-full bg-accent px-5 py-2.5 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-70"
+                    >
+                      {saving ? 'Saving…' : 'Update Profile'}
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              <div className="space-y-1">
-                <h3 className="text-xl font-semibold text-text-primary">Theme preferences</h3>
-                <p className="text-sm text-text-secondary">
+              <div className="border-b border-border pb-4">
+                <h3 className="text-2xl font-semibold text-text-primary">Theme preferences</h3>
+                <p className="mt-2 text-sm text-text-secondary">
                   Pick a preset to instantly update the interface colors. Previews show how panels and accents will look.
                 </p>
               </div>

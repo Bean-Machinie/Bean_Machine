@@ -8,6 +8,7 @@ import ProfilePage from './pages/ProfilePage';
 import ProjectPage from './pages/ProjectPage';
 import VerifyPage from './pages/VerifyPage';
 import AuthOverlay from './components/AuthOverlay';
+import ProfileMenu from './components/ProfileMenu';
 
 function App() {
   const location = useLocation();
@@ -65,14 +66,7 @@ function App() {
                 {initializing ? (
                   <span className="text-xs text-text-muted">Loading…</span>
                 ) : user ? (
-                  <button
-                    type="button"
-                    onClick={() => navigate('/profile')}
-                    className="relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-muted text-base font-semibold text-text-primary shadow-sm transition hover:border-accent hover:shadow-md"
-                  >
-                    <span className="uppercase">{user.email?.[0]?.toUpperCase() ?? 'U'}</span>
-                    <span className="sr-only">Open profile</span>
-                  </button>
+                  <ProfileMenu />
                 ) : (
                   <>
                     <button
