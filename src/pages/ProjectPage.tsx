@@ -1,4 +1,14 @@
-import { ChangeEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, DragEvent } from 'react';
+import {
+  ChangeEvent,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import ImageAssetBrowser from '../components/ImageAssetBrowser';
@@ -34,9 +44,15 @@ function ProjectPage() {
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const [pendingFrameItemId, setPendingFrameItemId] = useState<string | null>(null);
+  const [orderedItemIds, setOrderedItemIds] = useState<string[]>([]);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [recentFrame, setRecentFrame] = useState<{ itemId: string; frameId: string } | null>(null);
   const stripRefs = useRef(new Map<string, HTMLDivElement>());
   const stripScrollRefs = useRef(new Map<string, HTMLDivElement>());
   const pendingScrollItemIdRef = useRef<string | null>(null);
+  const dragHandleActiveRef = useRef<string | null>(null);
+  const addButtonRefs = useRef(new Map<string, HTMLButtonElement>());
+  const addButtonPositions = useRef(new Map<string, DOMRect>());
 
   const project: Project | null = useMemo(() => {
     if (!projectId) {
@@ -131,6 +147,132 @@ function ProjectPage() {
     [],
   );
 
+  const registerAddButtonRef = useCallback(
+    (itemId: string) => (node: HTMLButtonElement | null) => {
+      if (node) {
+        addButtonRefs.current.set(itemId, node);
+      } else {
+        addButtonRefs.current.delete(itemId);
+        addButtonPositions.current.delete(itemId);
+      }
+    },
+    [],
+  );
+
+  const reorderItems = useCallback((sourceId: string, targetId: string | null, position: 'before' | 'after') => {
+    setOrderedItemIds((previous) => {
+      if (sourceId === targetId) {
+        return previous;
+      }
+
+      const withoutSource = previous.filter((id) => id !== sourceId);
+
+      if (!targetId) {
+        return position === 'before' ? [sourceId, ...withoutSource] : [...withoutSource, sourceId];
+      }
+
+      const targetIndex = withoutSource.indexOf(targetId);
+      if (targetIndex === -1) {
+        return withoutSource;
+      }
+
+      const next = [...withoutSource];
+      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
+      next.splice(insertIndex, 0, sourceId);
+      return next;
+    });
+  }, []);
+
+  const handleItemDragStart = useCallback(
+    (itemId: string) => (event: DragEvent<HTMLButtonElement>) => {
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', itemId);
+      setActiveDragId(itemId);
+    },
+    [],
+  );
+
+  const handleStripDragStart = useCallback(
+    (itemId: string) => (event: DragEvent<HTMLDivElement>) => {
+      if (dragHandleActiveRef.current !== itemId) {
+        event.preventDefault();
+        return;
+      }
+
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', itemId);
+      event.stopPropagation();
+      setActiveDragId(itemId);
+    },
+    [],
+  );
+
+  const handleDragEnd = useCallback(() => {
+    setActiveDragId(null);
+    dragHandleActiveRef.current = null;
+  }, []);
+
+  const handleDropOnListItem = useCallback(
+    (targetId: string) => (event: DragEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const sourceId = event.dataTransfer.getData('text/plain');
+      if (!sourceId) {
+        return;
+      }
+
+      const targetRect = event.currentTarget.getBoundingClientRect();
+      const offset = event.clientY - targetRect.top;
+      const position = offset > targetRect.height / 2 ? 'after' : 'before';
+      reorderItems(sourceId, targetId, position);
+    },
+    [reorderItems],
+  );
+
+  const handleDropAtListEnd = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const sourceId = event.dataTransfer.getData('text/plain');
+      if (!sourceId) {
+        return;
+      }
+
+      reorderItems(sourceId, null, 'after');
+    },
+    [reorderItems],
+  );
+
+  const handleDropOnStrip = useCallback(
+    (targetId: string) => (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const sourceId = event.dataTransfer.getData('text/plain');
+      if (!sourceId) {
+        return;
+      }
+
+      const targetRect = event.currentTarget.getBoundingClientRect();
+      const offset = event.clientY - targetRect.top;
+      const position = offset > targetRect.height / 2 ? 'after' : 'before';
+      reorderItems(sourceId, targetId, position);
+    },
+    [reorderItems],
+  );
+
+  const handleDropAtStripEnd = useCallback(
+    (event: DragEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      const sourceId = event.dataTransfer.getData('text/plain');
+      if (!sourceId) {
+        return;
+      }
+
+      reorderItems(sourceId, null, 'after');
+    },
+    [reorderItems],
+  );
+
   const handleRename = useCallback(async () => {
     if (!project) {
       return;
@@ -168,6 +310,7 @@ function ProjectPage() {
         if (created) {
           pendingScrollItemIdRef.current = created.id;
           setHighlightedItemId(created.id);
+          setOrderedItemIds((previous) => [created.id, ...previous.filter((id) => id !== created.id)]);
         }
       } catch (error) {
         console.error('Failed to add item to project', error);
@@ -242,7 +385,7 @@ function ProjectPage() {
       setPendingFrameItemId(itemId);
 
       try {
-        await addFrameToItem(project.id, itemId);
+        const frame = await addFrameToItem(project.id, itemId);
         setStatusMessage(`Added a blank panel to ${targetItem.name}.`);
 
         const strip = stripRefs.current.get(itemId);
@@ -256,6 +399,9 @@ function ProjectPage() {
         }
 
         setHighlightedItemId(itemId);
+        if (frame) {
+          setRecentFrame({ itemId, frameId: frame.id });
+        }
       } catch (error) {
         console.error('Failed to add frame to item', error);
         setStatusMessage((error as Error).message ?? 'Failed to add a new panel.');
@@ -304,11 +450,11 @@ function ProjectPage() {
 
     const normalizedQuery = deferredSearchQuery.trim().toLowerCase();
     if (normalizedQuery.length === 0) {
-      return project.items;
+      return orderedItems;
     }
 
-    return project.items.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
-  }, [deferredSearchQuery, project]);
+    return orderedItems.filter((item) => item.name.toLowerCase().includes(normalizedQuery));
+  }, [deferredSearchQuery, orderedItems, project]);
 
   const filteredAssets = useMemo(() => {
     if (!project) {
@@ -346,9 +492,84 @@ function ProjectPage() {
     }
   }, [itemIdsSignature]);
 
+  useEffect(() => {
+    if (!project) {
+      setOrderedItemIds([]);
+      return;
+    }
+
+    setOrderedItemIds((previous) => {
+      if (previous.length === 0) {
+        return project.items.map((item) => item.id);
+      }
+
+      const availableIds = project.items.map((item) => item.id);
+      const preservedOrder = previous.filter((id) => availableIds.includes(id));
+      const additions = availableIds.filter((id) => !preservedOrder.includes(id));
+
+      if (additions.length === 0 && preservedOrder.length === previous.length) {
+        return preservedOrder;
+      }
+
+      return [...additions, ...preservedOrder];
+    });
+  }, [itemIdsSignature, project]);
+
+  const orderedItems = useMemo(() => {
+    if (!project) {
+      return [];
+    }
+
+    if (orderedItemIds.length === 0) {
+      return project.items;
+    }
+
+    const byId = new Map(project.items.map((item) => [item.id, item]));
+    const arranged: Project['items'] = orderedItemIds
+      .map((id) => byId.get(id))
+      .filter((item): item is Project['items'][number] => Boolean(item));
+    const leftovers = project.items.filter((item) => !orderedItemIds.includes(item.id));
+    return [...arranged, ...leftovers];
+  }, [orderedItemIds, project]);
+
+  const stripLayoutSignature = useMemo(
+    () =>
+      orderedItems
+        .map((item) => `${item.id}:${item.frames.length}`)
+        .join('|'),
+    [orderedItems],
+  );
+
+  useLayoutEffect(() => {
+    addButtonRefs.current.forEach((element, key) => {
+      const previousRect = addButtonPositions.current.get(key);
+      const nextRect = element.getBoundingClientRect();
+
+      if (previousRect) {
+        const deltaX = previousRect.left - nextRect.left;
+        const deltaY = previousRect.top - nextRect.top;
+
+        if (Math.abs(deltaX) > 1 || Math.abs(deltaY) > 1) {
+          element.animate(
+            [
+              { transform: `translate(${deltaX}px, ${deltaY}px)` },
+              { transform: 'translate(0, 0)' },
+            ],
+            {
+              duration: 320,
+              easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+            },
+          );
+        }
+      }
+
+      addButtonPositions.current.set(key, nextRect);
+    });
+  }, [stripLayoutSignature]);
+
   const asideDynamicClasses = useMemo(
     () =>
-      `relative flex min-h-screen flex-shrink-0 flex-col overflow-x-hidden
+      `sticky top-0 flex h-screen flex-shrink-0 flex-col overflow-hidden
       border-r border-border bg-surface-muted/70 transition-all duration-300
       ${isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'}`
     ,
@@ -455,8 +676,8 @@ function ProjectPage() {
   }
 
   return (
-  <div className="flex min-h-screen w-full overflow-hidden">
-    <aside className={asideDynamicClasses}>
+    <div className="flex min-h-screen w-full bg-background">
+      <aside className={asideDynamicClasses}>
       {/* HEADER (updated) */}
       <div className="relative border-b border-border/80 px-3 py-4">
         {/* leave space for the absolute toggle button on the right */}
@@ -573,23 +794,41 @@ function ProjectPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
         </div>
 
-        <div className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
-          {project.items.length === 0 ? (
+        <div
+          className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1"
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          }}
+          onDrop={handleDropAtListEnd}
+        >
+          {orderedItems.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-xs text-text-muted">
               No items yet. Use the action menu to add your first board, card deck, or poster.
             </p>
           ) : (
-            project.items.map((item) => {
+            orderedItems.map((item) => {
               const isHighlighted = highlightedItemId === item.id;
+              const isDragging = activeDragId === item.id;
               return (
                 <button
                   key={item.id}
                   type="button"
+                  draggable
+                  onDragStart={handleItemDragStart(item.id)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.dataTransfer.dropEffect = 'move';
+                  }}
+                  onDrop={handleDropOnListItem(item.id)}
                   onClick={() => handleItemCardClick(item.id)}
                   className={`group flex w-full flex-col items-start gap-1 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
                     isHighlighted
                       ? 'border-accent/60 bg-accent/10 text-text-primary'
                       : 'border-border/80 bg-surface/70 text-text-secondary hover:border-accent/50 hover:bg-accent/5 hover:text-text-primary'
+                  } ${
+                    isDragging ? 'cursor-grabbing opacity-70' : ''
                   }`}
                 >
                   <p className="font-semibold text-text-primary">{item.name}</p>
@@ -608,118 +847,182 @@ function ProjectPage() {
     </aside>
 
     <section className="flex-1 overflow-y-auto bg-background">
-      <div className="px-6 py-10 lg:px-10">
+      <div className="px-4 py-10 sm:px-6 lg:px-8">
         {statusMessage && (
           <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
         )}
 
-        <div className="mt-6 space-y-6">
-          <div className="rounded-3xl border border-border bg-surface-muted/40 p-7">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-semibold text-text-primary">Item Navigator</h2>
-                <p className="mt-2 max-w-2xl text-sm text-text-secondary">
-                  Explore and expand every item in your project. Each strip collects the panels that make up your boards, decks, and posters.
-                </p>
-              </div>
-              <div className="flex items-center gap-2 rounded-full bg-surface/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
-                <span>{project.items.length}</span>
-                <span>{project.items.length === 1 ? 'Item' : 'Items'}</span>
-              </div>
+        <div className="mt-6 space-y-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 px-1">
+            <div>
+              <h2 className="text-2xl font-semibold text-text-primary">Item Navigator</h2>
+              <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+                Explore and expand every item in your project. Each film strip below mirrors the cards in your action menu.
+              </p>
             </div>
+            <div className="flex items-center gap-2 rounded-full bg-surface/30 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+              <span>{orderedItems.length}</span>
+              <span>{orderedItems.length === 1 ? 'Item' : 'Items'}</span>
+            </div>
+          </div>
 
-            {project.items.length === 0 ? (
-              <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface/60 p-12 text-center">
-                <p className="text-lg font-semibold text-text-primary">No items yet</p>
-                <p className="mt-2 max-w-md text-sm text-text-muted">
-                  Use the action menu to add your first board, deck, or poster. Their film strips will appear here automatically.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleOpenItemDialog}
-                  className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
-                >
-                  Add an item
-                </button>
-              </div>
-            ) : (
-              <div className="mt-8 space-y-6">
-                {project.items.map((item) => {
-                  const isHighlighted = highlightedItemId === item.id;
-                  return (
-                    <div
-                      key={item.id}
-                      ref={registerStripRef(item.id)}
-                      className={`rounded-2xl border border-border/80 bg-surface/70 p-5 transition-all duration-500 ${
-                        isHighlighted
-                          ? 'ring-2 ring-accent/50 ring-offset-2 ring-offset-background shadow-lg shadow-accent/20'
-                          : 'shadow-sm shadow-black/10'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="text-base font-semibold text-text-primary">{item.name}</p>
-                          <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-                          <p className="mt-1 text-xs text-text-secondary">{item.variant}</p>
-                          {item.customDetails && (
-                            <p className="mt-1 text-xs text-text-muted">Custom: {item.customDetails}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2 rounded-full bg-surface-muted/70 px-3 py-1 text-xs font-semibold text-text-secondary">
-                          <span>{item.frames.length}</span>
-                          <span>{item.frames.length === 1 ? 'Panel' : 'Panels'}</span>
+          {orderedItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-[2rem] border border-dashed border-border/70 bg-surface/30 p-12 text-center">
+              <p className="text-lg font-semibold text-text-primary">No items yet</p>
+              <p className="mt-2 max-w-md text-sm text-text-muted">
+                Use the action menu to add your first board, deck, or poster. Their film strips will appear here automatically.
+              </p>
+              <button
+                type="button"
+                onClick={handleOpenItemDialog}
+                className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
+              >
+                Add an item
+              </button>
+            </div>
+          ) : (
+            <div
+              className="space-y-8 px-1"
+              onDragOver={(event) => {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+              }}
+              onDrop={handleDropAtStripEnd}
+            >
+              {orderedItems.map((item) => {
+                const isHighlighted = highlightedItemId === item.id;
+                const isDragging = activeDragId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    ref={registerStripRef(item.id)}
+                    draggable
+                    onDragStart={handleStripDragStart(item.id)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = 'move';
+                    }}
+                    onDrop={handleDropOnStrip(item.id)}
+                    className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
+                      isHighlighted
+                        ? 'bg-surface/40 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
+                        : 'hover:bg-surface/20 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
+                    } ${
+                      isDragging ? 'cursor-grabbing opacity-95' : ''
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <button
+                          type="button"
+                          aria-label="Reorder film strip"
+                          className="group/handle flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors duration-200 hover:bg-surface/40 hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                          onPointerDown={() => {
+                            dragHandleActiveRef.current = item.id;
+                          }}
+                          onPointerUp={() => {
+                            dragHandleActiveRef.current = null;
+                          }}
+                          onPointerLeave={(event) => {
+                            if (event.buttons === 0) {
+                              dragHandleActiveRef.current = null;
+                            }
+                          }}
+                          onBlur={() => {
+                            dragHandleActiveRef.current = null;
+                          }}
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            strokeWidth="1.5"
+                            stroke="currentColor"
+                            className="h-5 w-5"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                          </svg>
+                        </button>
+                        <div className="min-w-0 space-y-1">
+                          <p className="truncate text-base font-semibold text-text-primary">{item.name}</p>
+                          <div className="flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
+                            <span>{item.type}</span>
+                            <span className="text-text-secondary">{item.variant}</span>
+                            {item.customDetails && <span className="text-text-muted/80">Custom: {item.customDetails}</span>}
+                          </div>
                         </div>
                       </div>
-
-                      <div
-                        ref={registerStripScrollRef(item.id)}
-                        className="mt-4 overflow-x-auto pb-2"
-                      >
-                        <div className="flex min-h-[11rem] items-stretch gap-4 pr-2">
-                          {item.frames.map((frame, index) => {
-                            const ratio =
-                              frame.height > 0 ? Math.round((frame.width / frame.height) * 10) / 10 : null;
-                            return (
-                              <div key={frame.id} className="flex w-[12rem] flex-shrink-0 flex-col gap-2">
-                                <div className="flex flex-1 items-center justify-center rounded-2xl border border-border/70 bg-surface/80 p-4 shadow-inner shadow-black/10">
-                                  <div
-                                    className="relative h-full w-full"
-                                    style={{ aspectRatio: `${frame.width} / ${frame.height}` }}
-                                  >
-                                    <div className="absolute inset-0 rounded-xl border border-dashed border-border/80 bg-white shadow-sm" />
-                                    <div className="pointer-events-none absolute inset-2 rounded-lg border border-white/70 shadow-[inset_0_0_20px_rgba(15,23,42,0.08)]" />
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-between text-xs text-text-muted">
-                                  <span className="font-semibold uppercase tracking-[0.3em]">Frame {index + 1}</span>
-                                  <span className="text-[0.65rem] text-text-muted/80">
-                                    {ratio !== null ? `${ratio}:1` : '—'}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={() => handleAddFrame(item.id)}
-                            disabled={pendingFrameItemId === item.id}
-                            className={`flex w-[12rem] flex-shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 bg-surface/50 text-text-muted transition hover:border-accent/60 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                              pendingFrameItemId === item.id ? 'opacity-70' : ''
-                            }`}
-                          >
-                            <span className="text-3xl font-semibold">+</span>
-                            <span className="mt-2 text-xs font-semibold uppercase tracking-[0.3em]">
-                              {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
-                            </span>
-                          </button>
-                        </div>
+                      <div className="flex items-center gap-2 rounded-full bg-surface/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+                        <span>{item.frames.length}</span>
+                        <span>{item.frames.length === 1 ? 'Panel' : 'Panels'}</span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+
+                    <div ref={registerStripScrollRef(item.id)} className="overflow-x-auto pb-2">
+                      <div className="flex items-end gap-3 pr-2">
+                        {item.frames.map((frame, index) => {
+                          const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
+                          const ratioLabel = ratioValue !== null ? Math.round(ratioValue * 10) / 10 : null;
+                          const baseSize = 86;
+                          const widthPercent = ratioValue !== null && ratioValue < 1 ? baseSize * ratioValue : baseSize;
+                          const heightPercent = ratioValue !== null && ratioValue > 1 ? baseSize / ratioValue : baseSize;
+                          const visualStyle: CSSProperties = {
+                            width: `${widthPercent}%`,
+                            height: `${heightPercent}%`,
+                            margin: 'auto',
+                          };
+                          const isRecentFrame = recentFrame?.itemId === item.id && recentFrame.frameId === frame.id;
+
+                          return (
+                            <div key={frame.id} className="group/frame flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center">
+                              <div
+                                className={`relative flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
+                                  isRecentFrame ? 'animate-frame-appear' : ''
+                                } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1`}
+                                onAnimationEnd={() => {
+                                  if (recentFrame?.itemId === item.id && recentFrame.frameId === frame.id) {
+                                    setRecentFrame(null);
+                                  }
+                                }}
+                              >
+                                <div className="relative flex h-[86%] w-[86%] items-center justify-center rounded-[1.25rem] border border-white/5 bg-white/10 shadow-[inset_0_0_25px_rgba(2,6,23,0.35)]">
+                                  <div
+                                    className="rounded-xl bg-white/90 shadow-[inset_0_0_22px_rgba(15,23,42,0.22)]"
+                                    style={visualStyle}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex flex-col items-center gap-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
+                                <span className="font-semibold text-text-secondary">Frame {index + 1}</span>
+                                <span className="text-[0.6rem] text-text-muted/80">{ratioLabel !== null ? `${ratioLabel}:1` : '—'}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button
+                          ref={registerAddButtonRef(item.id)}
+                          type="button"
+                          onClick={() => handleAddFrame(item.id)}
+                          disabled={pendingFrameItemId === item.id}
+                          className={`group/add flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                            pendingFrameItemId === item.id ? 'cursor-wait opacity-70' : 'hover:-translate-y-2 hover:scale-[1.04]'
+                          }`}
+                        >
+                          <div className="flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/30 text-3xl font-semibold text-text-muted shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-colors duration-200 group-hover/add:bg-surface/50 group-hover/add:text-accent">
+                            +
+                          </div>
+                          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors duration-200 group-hover/add:text-accent">
+                            {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
+                          </span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </section>

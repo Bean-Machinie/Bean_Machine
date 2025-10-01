@@ -34,6 +34,16 @@ export default {
       ringColor: {
         DEFAULT: 'rgb(var(--color-ring) / <alpha-value>)',
       },
+      keyframes: {
+        'frame-appear': {
+          '0%': { transform: 'translateY(18px) scale(0.88) rotate(-1deg)', opacity: '0' },
+          '60%': { transform: 'translateY(-8px) scale(1.08) rotate(-2deg)', opacity: '1' },
+          '100%': { transform: 'translateY(0) scale(1) rotate(0deg)', opacity: '1' },
+        },
+      },
+      animation: {
+        'frame-appear': 'frame-appear 320ms cubic-bezier(0.33, 1, 0.68, 1)',
+      },
     },
   },
   plugins: [],
