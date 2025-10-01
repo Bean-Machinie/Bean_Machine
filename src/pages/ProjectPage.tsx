@@ -443,6 +443,23 @@ function ProjectPage() {
     [handleCloseSearchPanel, handleLocateAsset],
   );
 
+  const orderedItems = useMemo(() => {
+    if (!project) {
+      return [];
+    }
+
+    if (orderedItemIds.length === 0) {
+      return project.items;
+    }
+
+    const byId = new Map(project.items.map((item) => [item.id, item]));
+    const arranged: Project['items'] = orderedItemIds
+      .map((id) => byId.get(id))
+      .filter((item): item is Project['items'][number] => Boolean(item));
+    const leftovers = project.items.filter((item) => !orderedItemIds.includes(item.id));
+    return [...arranged, ...leftovers];
+  }, [orderedItemIds, project]);
+
   const filteredItems = useMemo(() => {
     if (!project) {
       return [];
@@ -514,23 +531,6 @@ function ProjectPage() {
       return [...additions, ...preservedOrder];
     });
   }, [itemIdsSignature, project]);
-
-  const orderedItems = useMemo(() => {
-    if (!project) {
-      return [];
-    }
-
-    if (orderedItemIds.length === 0) {
-      return project.items;
-    }
-
-    const byId = new Map(project.items.map((item) => [item.id, item]));
-    const arranged: Project['items'] = orderedItemIds
-      .map((id) => byId.get(id))
-      .filter((item): item is Project['items'][number] => Boolean(item));
-    const leftovers = project.items.filter((item) => !orderedItemIds.includes(item.id));
-    return [...arranged, ...leftovers];
-  }, [orderedItemIds, project]);
 
   const stripLayoutSignature = useMemo(
     () =>
