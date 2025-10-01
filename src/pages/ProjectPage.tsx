@@ -1,4 +1,4 @@
-import type { CSSProperties, DragEvent } from 'react';
+import type { CSSProperties, MutableRefObject, RefObject } from 'react';
 import {
   ChangeEvent,
   useCallback,
@@ -9,6 +9,27 @@ import {
   useRef,
   useState,
 } from 'react';
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useDndMonitor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useNavigate, useParams } from 'react-router-dom';
 
 import ImageAssetBrowser from '../components/ImageAssetBrowser';
@@ -16,30 +37,9 @@ import NewItemDialog from '../components/NewItemDialog';
 import { AssetInput, ItemInput, Project } from '../context/ProjectContext';
 import { findProject, useProjects } from '../context/ProjectContext';
 
-/** ----------------------------------------------------------------
- *  DnD helpers
- *  ---------------------------------------------------------------- */
-const transparentDragImage = (() => {
-  // Prevent default browser drag ghost (keeps cursor crisp, avoids flicker)
-  const c = document.createElement('canvas');
-  c.width = 1;
-  c.height = 1;
-  return c;
-})();
-
-function autoScrollOnEdge(container: HTMLElement, e: DragEvent, axis: 'y' | 'x' = 'y') {
-  const rect = container.getBoundingClientRect();
-  const edge = 32; // px threshold from edge
-  const speed = 12; // px per tick
-
-  if (axis === 'y') {
-    if (e.clientY < rect.top + edge) container.scrollTop -= speed;
-    else if (e.clientY > rect.bottom - edge) container.scrollTop += speed;
-  } else {
-    if (e.clientX < rect.left + edge) container.scrollLeft -= speed;
-    else if (e.clientX > rect.right - edge) container.scrollLeft += speed;
-  }
-}
+const LONG_PRESS_DELAY = 200;
+const EDGE_SCROLL_THRESHOLD = 36;
+const EDGE_SCROLL_SPEED = 18;
 
 const emptyAssetBrowserHandlers = Object.freeze({
   onClose: () => undefined,
@@ -47,6 +47,124 @@ const emptyAssetBrowserHandlers = Object.freeze({
   onRemoveAssets: () => undefined,
   onLocateAsset: () => undefined,
 });
+
+type ProjectItem = Project['items'][number];
+
+function usePrefersReducedMotion() {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const query = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => {
+      setPrefersReducedMotion(query.matches);
+    };
+
+    update();
+    query.addEventListener('change', update);
+    return () => {
+      query.removeEventListener('change', update);
+    };
+  }, []);
+
+  return prefersReducedMotion;
+}
+
+function useEdgeAutoScroll({
+  activeId,
+  listRef,
+  horizontalRefs,
+}: {
+  activeId: string | null;
+  listRef: RefObject<HTMLDivElement>;
+  horizontalRefs: MutableRefObject<Map<string, HTMLDivElement>>;
+}) {
+  const pointerRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useDndMonitor({
+    onDragStart(event) {
+      const rect = event.active.rect.current.translated ?? event.active.rect.current.initial;
+      if (!rect) return;
+      pointerRef.current = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    },
+    onDragMove(event) {
+      const rect = event.active.rect.current.translated ?? event.active.rect.current.initial;
+      if (!rect) return;
+      pointerRef.current = {
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    },
+    onDragEnd() {
+      pointerRef.current = { x: 0, y: 0 };
+    },
+    onDragCancel() {
+      pointerRef.current = { x: 0, y: 0 };
+    },
+  });
+
+  useEffect(() => {
+    if (!activeId || typeof window === 'undefined') {
+      return;
+    }
+
+    let frameId: number;
+
+    const tick = () => {
+      const pointer = pointerRef.current;
+      const containers: Array<{ element: HTMLElement; axis: 'x' | 'y' }> = [];
+
+      if (listRef.current) {
+        containers.push({ element: listRef.current, axis: 'y' });
+      }
+
+      horizontalRefs.current.forEach((element) => {
+        containers.push({ element, axis: 'x' });
+      });
+
+      containers.forEach(({ element, axis }) => {
+        const rect = element.getBoundingClientRect();
+        const withinBounds =
+          pointer.x >= rect.left - EDGE_SCROLL_THRESHOLD &&
+          pointer.x <= rect.right + EDGE_SCROLL_THRESHOLD &&
+          pointer.y >= rect.top - EDGE_SCROLL_THRESHOLD &&
+          pointer.y <= rect.bottom + EDGE_SCROLL_THRESHOLD;
+
+        if (!withinBounds) {
+          return;
+        }
+
+        if (axis === 'y') {
+          if (pointer.y < rect.top + EDGE_SCROLL_THRESHOLD) {
+            element.scrollTop -= EDGE_SCROLL_SPEED;
+          } else if (pointer.y > rect.bottom - EDGE_SCROLL_THRESHOLD) {
+            element.scrollTop += EDGE_SCROLL_SPEED;
+          }
+        } else if (axis === 'x') {
+          if (pointer.x < rect.left + EDGE_SCROLL_THRESHOLD) {
+            element.scrollLeft -= EDGE_SCROLL_SPEED;
+          } else if (pointer.x > rect.right - EDGE_SCROLL_THRESHOLD) {
+            element.scrollLeft += EDGE_SCROLL_SPEED;
+          }
+        }
+      });
+
+      frameId = window.requestAnimationFrame(tick);
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [activeId, horizontalRefs, listRef]);
+}
 
 function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -74,17 +192,12 @@ function ProjectPage() {
   const [recentFrame, setRecentFrame] = useState<{ itemId: string; frameId: string } | null>(null);
   const stripRefs = useRef(new Map<string, HTMLDivElement>());
   const stripScrollRefs = useRef(new Map<string, HTMLDivElement>());
-  const listItemRefs = useRef(new Map<string, HTMLButtonElement>());
   const pendingScrollItemIdRef = useRef<string | null>(null);
-  const dragHandleActiveRef = useRef<string | null>(null);
   const addButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const addButtonPositions = useRef(new Map<string, DOMRect>());
-  const listItemPositions = useRef(new Map<string, DOMRect>());
-  const stripPositions = useRef(new Map<string, DOMRect>());
+  const listContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // DnD hover throttle
-  const lastHoverTargetRef = useRef<string | null>(null);
-  const lastHoverPosRef = useRef<'before' | 'after' | null>(null);
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const project: Project | null = useMemo(() => {
     if (!projectId) {
@@ -179,18 +292,6 @@ function ProjectPage() {
     [],
   );
 
-  const registerListItemRef = useCallback(
-    (itemId: string) => (node: HTMLButtonElement | null) => {
-      if (node) {
-        listItemRefs.current.set(itemId, node);
-      } else {
-        listItemRefs.current.delete(itemId);
-        listItemPositions.current.delete(itemId);
-      }
-    },
-    [],
-  );
-
   const registerAddButtonRef = useCallback(
     (itemId: string) => (node: HTMLButtonElement | null) => {
       if (node) {
@@ -203,123 +304,80 @@ function ProjectPage() {
     [],
   );
 
-  const reorderItems = useCallback((sourceId: string, targetId: string | null, position: 'before' | 'after') => {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        delay: LONG_PRESS_DELAY,
+        tolerance: 6,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const moveItem = useCallback((activeId: string, overId: string) => {
     setOrderedItemIds((previous) => {
-      if (sourceId === targetId) {
+      const oldIndex = previous.indexOf(activeId);
+      const newIndex = previous.indexOf(overId);
+
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) {
         return previous;
       }
 
-      const withoutSource = previous.filter((id) => id !== sourceId);
-
-      if (!targetId) {
-        return position === 'before' ? [sourceId, ...withoutSource] : [...withoutSource, sourceId];
-      }
-
-      const targetIndex = withoutSource.indexOf(targetId);
-      if (targetIndex === -1) {
-        return withoutSource;
-      }
-
-      const next = [...withoutSource];
-      const insertIndex = position === 'before' ? targetIndex : targetIndex + 1;
-      next.splice(insertIndex, 0, sourceId);
-      return next;
+      return arrayMove(previous, oldIndex, newIndex);
     });
   }, []);
 
-  const handleItemDragStart = useCallback(
-    (itemId: string) => (event: DragEvent<HTMLButtonElement>) => {
-      event.stopPropagation();
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', itemId);
-      event.dataTransfer.setDragImage(transparentDragImage, 0, 0); // prevent ghost
-      setActiveDragId(itemId);
-    },
-    [],
-  );
-
-  const handleStripDragStart = useCallback(
-    (itemId: string) => (event: DragEvent<HTMLDivElement>) => {
-      if (dragHandleActiveRef.current !== itemId) {
-        event.preventDefault();
-        return;
-      }
-
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', itemId);
-      event.dataTransfer.setDragImage(transparentDragImage, 0, 0); // prevent ghost
-      event.stopPropagation();
-      setActiveDragId(itemId);
-    },
-    [],
-  );
-
-  const handleDragEnd = useCallback(() => {
-    setActiveDragId(null);
-    dragHandleActiveRef.current = null;
-    lastHoverTargetRef.current = null;
-    lastHoverPosRef.current = null;
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
   }, []);
 
-  const handleDropOnListItem = useCallback(
-    (targetId: string) => (event: DragEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const sourceId = event.dataTransfer.getData('text/plain');
-      if (!sourceId) {
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      const { active, over } = event;
+      if (!over) {
         return;
       }
 
-      const targetRect = event.currentTarget.getBoundingClientRect();
-      const offset = event.clientY - targetRect.top;
-      const position = offset > targetRect.height / 2 ? 'after' : 'before';
-      reorderItems(sourceId, targetId, position);
-    },
-    [reorderItems],
-  );
+      const activeId = active.id as string;
+      const overId = over.id as string;
 
-  const handleDropAtListEnd = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      const sourceId = event.dataTransfer.getData('text/plain');
-      if (!sourceId) {
+      if (activeId === overId) {
         return;
       }
 
-      reorderItems(sourceId, null, 'after');
+      moveItem(activeId, overId);
     },
-    [reorderItems],
+    [moveItem],
   );
 
-  const handleDropOnStrip = useCallback(
-    (targetId: string) => (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const sourceId = event.dataTransfer.getData('text/plain');
-      if (!sourceId) {
-        return;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over) {
+        const activeId = active.id as string;
+        const overId = over.id as string;
+
+        if (activeId !== overId) {
+          moveItem(activeId, overId);
+        }
       }
 
-      const targetRect = event.currentTarget.getBoundingClientRect();
-      const offset = event.clientY - targetRect.top;
-      const position = offset > targetRect.height / 2 ? 'after' : 'before';
-      reorderItems(sourceId, targetId, position);
+      setActiveDragId(null);
     },
-    [reorderItems],
+    [moveItem],
   );
 
-  const handleDropAtStripEnd = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      const sourceId = event.dataTransfer.getData('text/plain');
-      if (!sourceId) {
-        return;
-      }
+  const handleDragCancel = useCallback(() => {
+    setActiveDragId(null);
+  }, []);
 
-      reorderItems(sourceId, null, 'after');
-    },
-    [reorderItems],
-  );
+  useEdgeAutoScroll({
+    activeId: activeDragId,
+    listRef: listContainerRef,
+    horizontalRefs: stripScrollRefs,
+  });
 
   const handleRename = useCallback(async () => {
     if (!project) {
@@ -508,6 +566,16 @@ function ProjectPage() {
     return [...arranged, ...leftovers];
   }, [orderedItemIds, project]);
 
+  const itemsById = useMemo(() => {
+    const map = new Map<string, ProjectItem>();
+    orderedItems.forEach((item) => {
+      map.set(item.id, item);
+    });
+    return map;
+  }, [orderedItems]);
+
+  const activeItem = activeDragId ? itemsById.get(activeDragId) ?? null : null;
+
   const filteredItems = useMemo(() => {
     if (!project) {
       return [];
@@ -614,132 +682,6 @@ function ProjectPage() {
       addButtonPositions.current.set(key, nextRect);
     });
   }, [stripLayoutSignature]);
-
-  useLayoutEffect(() => {
-    const animateElement = (
-      element: HTMLElement,
-      previousRect: DOMRect | undefined,
-      nextRect: DOMRect,
-      prefersReducedMotion: boolean,
-    ) => {
-      if (!previousRect) {
-        return;
-      }
-
-      const deltaX = previousRect.left - nextRect.left;
-      const deltaY = previousRect.top - nextRect.top;
-
-      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
-        return;
-      }
-
-      if (prefersReducedMotion) {
-        return;
-      }
-
-      const supportsWAAPI = typeof element.animate === 'function';
-
-      if (supportsWAAPI) {
-        if (typeof element.getAnimations === 'function') {
-          element.getAnimations().forEach((animation) => {
-            animation.cancel();
-          });
-        }
-        element.animate(
-          [
-            { transform: `translate(${deltaX}px, ${deltaY}px)` },
-            { transform: 'translate(0, 0)' },
-          ],
-          {
-            duration: 260,
-            easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
-          },
-        );
-        return;
-      }
-
-      const originalTransition = element.style.transition;
-      const originalTransform = element.style.transform;
-
-      element.style.transition = 'none';
-      element.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-
-      const cleanup = () => {
-        element.style.transition = originalTransition;
-        element.style.transform = originalTransform;
-      };
-
-      let fallbackTimeoutId: number | null = null;
-
-      const handleTransitionEnd = () => {
-        cleanup();
-        element.removeEventListener('transitionend', handleTransitionEnd);
-        if (fallbackTimeoutId !== null) {
-          window.clearTimeout(fallbackTimeoutId);
-        }
-      };
-
-      element.addEventListener('transitionend', handleTransitionEnd);
-
-      void element.getBoundingClientRect();
-
-      const scheduleAnimation =
-        typeof window.requestAnimationFrame === 'function'
-          ? window.requestAnimationFrame.bind(window)
-          : (callback: FrameRequestCallback) =>
-              window.setTimeout(
-                () => callback(typeof performance !== 'undefined' ? performance.now() : Date.now()),
-                16,
-              );
-
-      scheduleAnimation(() => {
-        element.style.transition = 'transform 260ms cubic-bezier(0.33, 1, 0.68, 1)';
-        element.style.transform = 'translate(0, 0)';
-      });
-
-      fallbackTimeoutId = window.setTimeout(() => {
-        element.removeEventListener('transitionend', handleTransitionEnd);
-        cleanup();
-      }, 320);
-    };
-
-    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const prefersReducedMotion = mediaQuery.matches;
-
-    listItemRefs.current.forEach((element, key) => {
-      const previousRect = listItemPositions.current.get(key);
-      const nextRect = element.getBoundingClientRect();
-
-      if (activeDragId !== key) {
-        animateElement(element, previousRect, nextRect, prefersReducedMotion);
-      }
-
-      listItemPositions.current.set(key, nextRect);
-    });
-
-    stripRefs.current.forEach((element, key) => {
-      const previousRect = stripPositions.current.get(key);
-      const nextRect = element.getBoundingClientRect();
-
-      if (activeDragId !== key) {
-        animateElement(element, previousRect, nextRect, prefersReducedMotion);
-      }
-
-      stripPositions.current.set(key, nextRect);
-    });
-
-    listItemPositions.current.forEach((_, key) => {
-      if (!listItemRefs.current.has(key)) {
-        listItemPositions.current.delete(key);
-      }
-    });
-
-    stripPositions.current.forEach((_, key) => {
-      if (!stripRefs.current.has(key)) {
-        stripPositions.current.delete(key);
-      }
-    });
-  }, [activeDragId, orderedItems]);
 
   const asideDynamicClasses = useMemo(
     () =>
@@ -848,7 +790,15 @@ function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={handleDragStart}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
+      <div className="flex min-h-screen w-full bg-background">
       <aside className={asideDynamicClasses}>
         {/* HEADER */}
         <div className="relative border-b border-border/80 px-3 py-4">
@@ -966,87 +916,24 @@ function ProjectPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-text-muted">Items</p>
           </div>
 
-          <div
-            className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1"
-            onDragOver={(event) => {
-              event.preventDefault();
-              event.dataTransfer.dropEffect = 'move';
-              // autoscroll vertical list
-              autoScrollOnEdge(event.currentTarget as HTMLDivElement, event, 'y');
-            }}
-            onDrop={handleDropAtListEnd}
-          >
+          <div ref={listContainerRef} className="mt-3 flex-1 space-y-2 overflow-y-auto pr-1">
             {orderedItems.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border/70 bg-surface/60 px-3 py-6 text-center text-xs text-text-muted">
                 No items yet. Use the action menu to add your first board, card deck, or poster.
               </p>
             ) : (
-              orderedItems.map((item) => {
-                const isHighlighted = highlightedItemId === item.id;
-                const isDragging = activeDragId === item.id;
-                return (
-                  <div key={item.id}>
-                    <button
-                      type="button"
-                      draggable
-                      ref={registerListItemRef(item.id)}
-                      onDragStart={handleItemDragStart(item.id)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(event) => {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = 'move';
-
-                        const sourceId = activeDragId;
-                        if (!sourceId || sourceId === item.id) return;
-
-                        // Only reorder if it would actually change index to avoid jitter.
-                        const targetRect = event.currentTarget.getBoundingClientRect();
-                        const offset = event.clientY - targetRect.top;
-                        const position: 'before' | 'after' = offset > targetRect.height / 2 ? 'after' : 'before';
-
-                        if (lastHoverTargetRef.current === item.id && lastHoverPosRef.current === position) return;
-
-                        const srcIdx = orderedItemIds.indexOf(sourceId);
-                        const tgtIdx = orderedItemIds.indexOf(item.id);
-                        if (srcIdx === -1 || tgtIdx === -1) return;
-
-                        // No-op guards (already adjacent in target direction)
-                        if (position === 'before' && srcIdx === tgtIdx - 1) return;
-                        if (position === 'after' && srcIdx === tgtIdx + 1) return;
-                        if (srcIdx === tgtIdx) return;
-
-                        lastHoverTargetRef.current = item.id;
-                        lastHoverPosRef.current = position;
-                        reorderItems(sourceId, item.id, position);
-                      }}
-                      onDrop={handleDropOnListItem(item.id)}
-                      onClick={() => handleItemCardClick(item.id)}
-                      className={`group flex w-full flex-col items-start gap-1 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition-[transform,box-shadow,background-color,border-color,opacity] duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 will-change-transform ${
-                        isHighlighted
-                          ? 'border-accent/60 bg-accent/10 text-text-primary'
-                          : 'border-border/80 bg-surface/70 text-text-secondary hover:border-accent/50 hover:bg-accent/5 hover:text-text-primary'
-                      } ${
-                        isDragging
-                          ? 'pointer-events-none z-20 -translate-y-0.5 scale-[1.015] cursor-grabbing border-accent/60 bg-surface/90 text-text-primary shadow-[0_22px_46px_rgba(2,6,23,0.45)]'
-                          : 'cursor-default'
-                      }`}
-                    >
-                      <p className="font-semibold text-text-primary">{item.name}</p>
-                      <div className="flex w-full items-center justify-between text-xs text-text-muted">
-                        <span className="uppercase tracking-[0.3em]">{item.type}</span>
-                        <span className="font-semibold text-text-secondary">
-                          {item.frames.length} {item.frames.length === 1 ? 'panel' : 'panels'}
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* placeholder to keep space while dragging */}
-                    {activeDragId === item.id && (
-                      <div className="h-[3.25rem] rounded-2xl border border-dashed border-accent/40 bg-accent/5 transition-all" />
-                    )}
-                  </div>
-                );
-              })
+              <SortableContext id="item-list" items={orderedItemIds} strategy={verticalListSortingStrategy}>
+                {orderedItems.map((item) => (
+                  <SortableListCard
+                    key={item.id}
+                    item={item}
+                    isHighlighted={highlightedItemId === item.id}
+                    isActive={activeDragId === item.id}
+                    prefersReducedMotion={prefersReducedMotion}
+                    onSelect={() => handleItemCardClick(item.id)}
+                  />
+                ))}
+              </SortableContext>
             )}
           </div>
         </div>
@@ -1087,165 +974,26 @@ function ProjectPage() {
                 </button>
               </div>
             ) : (
-              <div
-                className="space-y-8 px-1"
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = 'move';
-                }}
-                onDrop={handleDropAtStripEnd}
-              >
-                {orderedItems.map((item) => {
-                  const isHighlighted = highlightedItemId === item.id;
-                  const isDragging = activeDragId === item.id;
-                  return (
-                    <div key={item.id}>
-                      <div
-                        ref={registerStripRef(item.id)}
-                        draggable
-                        onDragStart={handleStripDragStart(item.id)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(event) => {
-                          event.preventDefault();
-                          event.dataTransfer.dropEffect = 'move';
-                          // NO live hover-reorder for strips to avoid teleporting; reorder is onDrop only.
-                        }}
-                        onDrop={handleDropOnStrip(item.id)}
-                        className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-[transform,box-shadow,background-color,opacity] duration-300 will-change-transform ${
-                          isHighlighted
-                            ? 'bg-surface-muted/20 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
-                            : 'bg-surface-muted/40 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
-                        } ${
-                          isDragging
-                            ? 'pointer-events-none z-10 -translate-y-1 scale-[1.01] cursor-grabbing bg-surface-muted/70 shadow-[0_26px_55px_rgba(2,6,23,0.45)] ring-1 ring-accent/50'
-                            : 'cursor-default'
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-4">
-                          <div className="flex items-start gap-3">
-                            <button
-                              type="button"
-                              aria-label="Reorder film strip"
-                              className="group/handle flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors duration-200 hover:bg-surface/40 hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-                              onPointerDown={() => {
-                                dragHandleActiveRef.current = item.id;
-                              }}
-                              onPointerUp={() => {
-                                dragHandleActiveRef.current = null;
-                              }}
-                              onPointerLeave={(event) => {
-                                if ((event as unknown as PointerEvent).buttons === 0) {
-                                  dragHandleActiveRef.current = null;
-                                }
-                              }}
-                              onBlur={() => {
-                                dragHandleActiveRef.current = null;
-                              }}
-                            >
-                              <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth="1.5"
-                                stroke="currentColor"
-                                className="h-5 w-5"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-                              </svg>
-                            </button>
-                            <div className="min-w-0 space-y-1">
-                              <p className="truncate text-base font-semibold text-text-primary">{item.name}</p>
-                              <div className="flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
-                                <span>{item.type}</span>
-                                <span className="text-text-secondary">{item.variant}</span>
-                                {item.customDetails && <span className="text-text-muted/80">Custom: {item.customDetails}</span>}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 rounded-full bg-surface/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
-                            <span>{item.frames.length}</span>
-                            <span>{item.frames.length === 1 ? 'Panel' : 'Panels'}</span>
-                          </div>
-                        </div>
-
-                        <div
-                          ref={registerStripScrollRef(item.id)}
-                          className="overflow-x-auto pb-2"
-                          onDragOver={(event) => {
-                            event.preventDefault();
-                            event.dataTransfer.dropEffect = 'move';
-                            // autoscroll horizontal scroller
-                            autoScrollOnEdge(event.currentTarget as HTMLDivElement, event, 'x');
-                          }}
-                        >
-                          <div className="flex items-end gap-3 pr-2">
-                            {item.frames.map((frame, index) => {
-                              const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
-                              const ratioLabel = ratioValue !== null ? Math.round(ratioValue * 10) / 10 : null;
-                              const baseSize = 86;
-                              const widthPercent = ratioValue !== null && ratioValue < 1 ? baseSize * ratioValue : baseSize;
-                              const heightPercent = ratioValue !== null && ratioValue > 1 ? baseSize / ratioValue : baseSize;
-                              const visualStyle: CSSProperties = {
-                                width: `${widthPercent}%`,
-                                height: `${heightPercent}%`,
-                                margin: 'auto',
-                              };
-                              const isRecentFrame = recentFrame?.itemId === item.id && recentFrame.frameId === frame.id;
-
-                              return (
-                                <div key={frame.id} className="group/frame flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center">
-                                  <div
-                                    className={`relative flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
-                                      isRecentFrame ? 'animate-frame-appear' : ''
-                                    } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1`}
-                                    onAnimationEnd={() => {
-                                      if (recentFrame?.itemId === item.id && recentFrame.frameId === frame.id) {
-                                        setRecentFrame(null);
-                                      }
-                                    }}
-                                  >
-                                    <div className="relative flex h-[86%] w-[86%] items-center justify-center rounded-[1.25rem] border border-white/5 bg-white/10 shadow-[inset_0_0_25px_rgba(2,6,23,0.35)]">
-                                      <div
-                                        className="rounded-xl bg-white/90 shadow-[inset_0_0_22px_rgba(15,23,42,0.22)]"
-                                        style={visualStyle}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className="flex flex-col items-center gap-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
-                                    <span className="font-semibold text-text-secondary">Frame {index + 1}</span>
-                                    <span className="text-[0.6rem] text-text-muted/80">{ratioLabel !== null ? `${ratioLabel}:1` : '—'}</span>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                            <button
-                              ref={registerAddButtonRef(item.id)}
-                              type="button"
-                              onClick={() => handleAddFrame(item.id)}
-                              disabled={pendingFrameItemId === item.id}
-                              className={`group/add flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                                pendingFrameItemId === item.id ? 'cursor-wait opacity-70' : 'hover:-translate-y-2 hover:scale-[1.04]'
-                              }`}
-                            >
-                              <div className="flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/30 text-3xl font-semibold text-text-muted shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-colors duration-200 group-hover/add:bg-surface/50 group-hover/add:text-accent">
-                                +
-                              </div>
-                              <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors duration-200 group-hover/add:text-accent">
-                                {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
-                              </span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* placeholder strip while dragging */}
-                      {activeDragId === item.id && (
-                        <div className="h-8 rounded-[1.75rem] border border-dashed border-accent/40 bg-accent/5 mx-1" />
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <SortableContext id="film-strips" items={orderedItemIds} strategy={verticalListSortingStrategy}>
+                <div className="space-y-8 px-1">
+                  {orderedItems.map((item) => (
+                    <SortableFilmStrip
+                      key={item.id}
+                      item={item}
+                      isHighlighted={highlightedItemId === item.id}
+                      isActive={activeDragId === item.id}
+                      prefersReducedMotion={prefersReducedMotion}
+                      registerStripRef={registerStripRef}
+                      registerStripScrollRef={registerStripScrollRef}
+                      registerAddButtonRef={registerAddButtonRef}
+                      onAddFrame={() => handleAddFrame(item.id)}
+                      pendingFrameItemId={pendingFrameItemId}
+                      recentFrame={recentFrame}
+                      clearRecentFrame={() => setRecentFrame(null)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
             )}
           </div>
         </div>
@@ -1348,7 +1096,270 @@ function ProjectPage() {
 
       <ImageAssetBrowser {...assetBrowserProps} />
     </div>
+    <DragOverlay dropAnimation={null}>
+      {activeItem ? <DragOverlayChip item={activeItem} /> : null}
+    </DragOverlay>
+  </DndContext>
   );
 }
+
+function GripIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth="1.5"
+      stroke="currentColor"
+      className={className ?? 'h-5 w-5'}
+      aria-hidden="true"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+    </svg>
+  );
+}
+
+type SortableListCardProps = {
+  item: ProjectItem;
+  isHighlighted: boolean;
+  isActive: boolean;
+  prefersReducedMotion: boolean;
+  onSelect: () => void;
+};
+
+function SortableListCard({ item, isHighlighted, isActive, prefersReducedMotion, onSelect }: SortableListCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    data: { type: 'item', item },
+  });
+
+  const dragging = isDragging || isActive;
+  const finalTransition = prefersReducedMotion || dragging ? undefined : transition ?? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: finalTransition,
+    pointerEvents: isDragging ? 'none' : undefined,
+    touchAction: 'none',
+    cursor: dragging ? 'grabbing' : 'grab',
+    zIndex: dragging ? 20 : undefined,
+  };
+
+  const stateClasses = isHighlighted
+    ? 'border-accent/60 bg-accent/10 text-text-primary'
+    : 'border-border/80 bg-surface/70 text-text-secondary hover:border-accent/50 hover:bg-accent/5 hover:text-text-primary';
+  const draggingClasses = dragging ? 'bg-surface/90 text-text-primary shadow-[0_22px_46px_rgba(2,6,23,0.45)] ring-1 ring-accent/50' : '';
+
+  return (
+    <button
+      type="button"
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      onClick={onSelect}
+      className={`group relative flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition-[background-color,border-color,box-shadow] duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${stateClasses} ${draggingClasses}`}
+    >
+      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl bg-surface/40 text-text-muted transition-colors duration-200 group-hover:text-accent group-active:text-accent">
+        <GripIcon className="h-5 w-5" />
+      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="truncate font-semibold text-text-primary">{item.name}</p>
+        <div className="flex w-full items-center justify-between text-xs text-text-muted">
+          <span className="uppercase tracking-[0.3em]">{item.type}</span>
+          <span className="font-semibold text-text-secondary">
+            {item.frames.length} {item.frames.length === 1 ? 'panel' : 'panels'}
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+type SortableFilmStripProps = {
+  item: ProjectItem;
+  isHighlighted: boolean;
+  isActive: boolean;
+  prefersReducedMotion: boolean;
+  registerStripRef: (itemId: string) => (node: HTMLDivElement | null) => void;
+  registerStripScrollRef: (itemId: string) => (node: HTMLDivElement | null) => void;
+  registerAddButtonRef: (itemId: string) => (node: HTMLButtonElement | null) => void;
+  onAddFrame: () => void;
+  pendingFrameItemId: string | null;
+  recentFrame: { itemId: string; frameId: string } | null;
+  clearRecentFrame: () => void;
+};
+
+function SortableFilmStrip({
+  item,
+  isHighlighted,
+  isActive,
+  prefersReducedMotion,
+  registerStripRef,
+  registerStripScrollRef,
+  registerAddButtonRef,
+  onAddFrame,
+  pendingFrameItemId,
+  recentFrame,
+  clearRecentFrame,
+}: SortableFilmStripProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: item.id,
+    data: { type: 'item', item },
+  });
+
+  const assignStripRef = useMemo(() => registerStripRef(item.id), [item.id, registerStripRef]);
+  const assignScrollRef = useMemo(() => registerStripScrollRef(item.id), [item.id, registerStripScrollRef]);
+  const assignAddButtonRef = useMemo(() => registerAddButtonRef(item.id), [item.id, registerAddButtonRef]);
+
+  const setContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      setNodeRef(node);
+      assignStripRef(node);
+    },
+    [assignStripRef, setNodeRef],
+  );
+
+  const setScrollRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      assignScrollRef(node);
+    },
+    [assignScrollRef],
+  );
+
+  const setAddButtonRef = useCallback(
+    (node: HTMLButtonElement | null) => {
+      assignAddButtonRef(node);
+    },
+    [assignAddButtonRef],
+  );
+
+  const dragging = isDragging || isActive;
+  const finalTransition = prefersReducedMotion || dragging ? undefined : transition ?? 'transform 220ms cubic-bezier(0.22, 1, 0.36, 1)';
+  const style: CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition: finalTransition,
+    pointerEvents: isDragging ? 'none' : undefined,
+    touchAction: 'none',
+    cursor: dragging ? 'grabbing' : 'grab',
+    zIndex: dragging ? 25 : undefined,
+  };
+
+  const frameLabel = item.frames.length === 1 ? 'Panel' : 'Panels';
+
+  const handleFrameAnimationEnd = useCallback(
+    (frameId: string) => {
+      if (recentFrame?.itemId === item.id && recentFrame.frameId === frameId) {
+        clearRecentFrame();
+      }
+    },
+    [clearRecentFrame, item.id, recentFrame],
+  );
+
+  const containerClasses = [
+    'group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-[background-color,box-shadow,border-color] duration-200',
+    isHighlighted
+      ? 'bg-surface-muted/20 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
+      : 'bg-surface-muted/40 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]',
+    dragging ? 'bg-surface-muted/70 text-text-primary shadow-[0_26px_55px_rgba(2,6,23,0.45)] ring-1 ring-accent/50' : '',
+  ].join(' ');
+
+  return (
+    <div ref={setContainerRef} style={style} {...attributes} {...listeners} className={containerClasses}>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors duration-200 group-hover/strip:text-text-secondary" aria-hidden="true">
+            <GripIcon className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 space-y-1">
+            <p className="truncate text-base font-semibold text-text-primary">{item.name}</p>
+            <div className="flex flex-wrap items-center gap-2 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
+              <span>{item.type}</span>
+              <span className="text-text-secondary">{item.variant}</span>
+              {item.customDetails && <span className="text-text-muted/80">Custom: {item.customDetails}</span>}
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 rounded-full bg-surface/30 px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+          <span>{item.frames.length}</span>
+          <span>{frameLabel}</span>
+        </div>
+      </div>
+
+      <div ref={setScrollRef} className="overflow-x-auto pb-2">
+        <div className="flex items-end gap-3 pr-2">
+          {item.frames.map((frame, index) => {
+            const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
+            const ratioLabel = ratioValue !== null ? Math.round(ratioValue * 10) / 10 : null;
+            const baseSize = 86;
+            const widthPercent = ratioValue !== null && ratioValue < 1 ? baseSize * ratioValue : baseSize;
+            const heightPercent = ratioValue !== null && ratioValue > 1 ? baseSize / ratioValue : baseSize;
+            const visualStyle: CSSProperties = {
+              width: `${widthPercent}%`,
+              height: `${heightPercent}%`,
+              margin: 'auto',
+            };
+            const isRecentFrame = recentFrame?.itemId === item.id && recentFrame.frameId === frame.id;
+
+            return (
+              <div key={frame.id} className="group/frame flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center">
+                <div
+                  className={`relative flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
+                    isRecentFrame ? 'animate-frame-appear' : ''
+                  } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1`}
+                  onAnimationEnd={() => handleFrameAnimationEnd(frame.id)}
+                >
+                  <div className="relative flex h-[86%] w-[86%] items-center justify-center rounded-[1.25rem] border border-white/5 bg-white/10 shadow-[inset_0_0_25px_rgba(2,6,23,0.35)]">
+                    <div className="rounded-xl bg-white/90 shadow-[inset_0_0_22px_rgba(15,23,42,0.22)]" style={visualStyle} />
+                  </div>
+                </div>
+                <div className="flex flex-col items-center gap-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
+                  <span className="font-semibold text-text-secondary">Frame {index + 1}</span>
+                  <span className="text-[0.6rem] text-text-muted/80">{ratioLabel !== null ? `${ratioLabel}:1` : '—'}</span>
+                </div>
+              </div>
+            );
+          })}
+          <button
+            ref={setAddButtonRef}
+            type="button"
+            onClick={onAddFrame}
+            disabled={pendingFrameItemId === item.id}
+            className={`group/add flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+              pendingFrameItemId === item.id ? 'cursor-wait opacity-70' : 'hover:-translate-y-2 hover:scale-[1.04]'
+            }`}
+          >
+            <div className="flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/30 text-3xl font-semibold text-text-muted shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-colors duration-200 group-hover/add:bg-surface/50 group-hover/add:text-accent">
+              +
+            </div>
+            <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors duration-200 group-hover/add:text-accent">
+              {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type DragOverlayChipProps = {
+  item: ProjectItem;
+};
+
+function DragOverlayChip({ item }: DragOverlayChipProps) {
+  return (
+    <div className="flex min-w-[12rem] items-center gap-3 rounded-2xl border border-accent/60 bg-surface px-4 py-3 shadow-xl shadow-black/40">
+      <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-accent/15 text-accent">
+        <GripIcon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-text-primary">{item.name}</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-text-muted">
+          {item.frames.length} {item.frames.length === 1 ? 'Panel' : 'Panels'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 
 export default ProjectPage;
