@@ -1,5 +1,5 @@
-import { ChangeEvent, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { ChangeEvent, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import ImageAssetBrowser from '../components/ImageAssetBrowser';
 import NewItemDialog from '../components/NewItemDialog';
@@ -16,7 +16,14 @@ const emptyAssetBrowserHandlers = Object.freeze({
 function ProjectPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects, updateProjectName, addItemToProject, addAssetsToProject, removeAssetsFromProject } = useProjects();
+  const {
+    projects,
+    updateProjectName,
+    addItemToProject,
+    addFrameToItem,
+    addAssetsToProject,
+    removeAssetsFromProject,
+  } = useProjects();
   const [isCollapsed, setCollapsed] = useState(false);
   const [isEditingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
@@ -25,6 +32,11 @@ function ProjectPage() {
   const [isItemDialogOpen, setItemDialogOpen] = useState(false);
   const [isAssetBrowserOpen, setAssetBrowserOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
+  const [pendingFrameItemId, setPendingFrameItemId] = useState<string | null>(null);
+  const stripRefs = useRef(new Map<string, HTMLDivElement>());
+  const stripScrollRefs = useRef(new Map<string, HTMLDivElement>());
+  const pendingScrollItemIdRef = useRef<string | null>(null);
 
   const project: Project | null = useMemo(() => {
     if (!projectId) {
@@ -48,6 +60,15 @@ function ProjectPage() {
     }
     return undefined;
   }, [statusMessage]);
+
+  useEffect(() => {
+    if (!highlightedItemId) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => setHighlightedItemId(null), 1600);
+    return () => clearTimeout(timeout);
+  }, [highlightedItemId]);
 
   const handleToggleCollapsed = useCallback(() => {
     setCollapsed((prev) => !prev);
@@ -88,6 +109,28 @@ function ProjectPage() {
   const handleOpenAssetBrowser = useCallback(() => setAssetBrowserOpen(true), []);
   const handleCloseAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
 
+  const registerStripRef = useCallback(
+    (itemId: string) => (node: HTMLDivElement | null) => {
+      if (node) {
+        stripRefs.current.set(itemId, node);
+      } else {
+        stripRefs.current.delete(itemId);
+      }
+    },
+    [],
+  );
+
+  const registerStripScrollRef = useCallback(
+    (itemId: string) => (node: HTMLDivElement | null) => {
+      if (node) {
+        stripScrollRefs.current.set(itemId, node);
+      } else {
+        stripScrollRefs.current.delete(itemId);
+      }
+    },
+    [],
+  );
+
   const handleRename = useCallback(async () => {
     if (!project) {
       return;
@@ -122,6 +165,10 @@ function ProjectPage() {
         const created = await addItemToProject(project.id, item);
         const itemName = created?.name ?? item.name;
         setStatusMessage(`${itemName} added to ${projectName}`);
+        if (created) {
+          pendingScrollItemIdRef.current = created.id;
+          setHighlightedItemId(created.id);
+        }
       } catch (error) {
         console.error('Failed to add item to project', error);
         setStatusMessage((error as Error).message ?? 'Failed to add item');
@@ -181,6 +228,52 @@ function ProjectPage() {
     [project],
   );
 
+  const handleAddFrame = useCallback(
+    async (itemId: string) => {
+      if (!project) {
+        return;
+      }
+
+      const targetItem = project.items.find((candidate) => candidate.id === itemId);
+      if (!targetItem) {
+        return;
+      }
+
+      setPendingFrameItemId(itemId);
+
+      try {
+        await addFrameToItem(project.id, itemId);
+        setStatusMessage(`Added a blank panel to ${targetItem.name}.`);
+
+        const strip = stripRefs.current.get(itemId);
+        if (strip) {
+          strip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        const scroller = stripScrollRefs.current.get(itemId);
+        if (scroller) {
+          scroller.scrollTo({ left: scroller.scrollWidth, behavior: 'smooth' });
+        }
+
+        setHighlightedItemId(itemId);
+      } catch (error) {
+        console.error('Failed to add frame to item', error);
+        setStatusMessage((error as Error).message ?? 'Failed to add a new panel.');
+      } finally {
+        setPendingFrameItemId(null);
+      }
+    },
+    [addFrameToItem, project],
+  );
+
+  const handleItemCardClick = useCallback((itemId: string) => {
+    const strip = stripRefs.current.get(itemId);
+    if (strip) {
+      strip.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedItemId(itemId);
+    }
+  }, []);
+
   const handleSearchSelectItem = useCallback(
     (itemId: string) => {
       if (!project) {
@@ -231,6 +324,27 @@ function ProjectPage() {
   }, [deferredSearchQuery, project]);
 
   const hasSearchQuery = deferredSearchQuery.trim().length > 0;
+
+  const itemIdsSignature = useMemo(() => {
+    if (!project) {
+      return '';
+    }
+
+    return project.items.map((item) => item.id).join('|');
+  }, [project]);
+
+  useEffect(() => {
+    const pendingId = pendingScrollItemIdRef.current;
+    if (!pendingId) {
+      return;
+    }
+
+    const target = stripRefs.current.get(pendingId);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pendingScrollItemIdRef.current = null;
+    }
+  }, [itemIdsSignature]);
 
   const asideDynamicClasses = useMemo(
     () =>
@@ -465,75 +579,147 @@ function ProjectPage() {
               No items yet. Use the action menu to add your first board, card deck, or poster.
             </p>
           ) : (
-            project.items.map((item) => (
-              <div
-                key={item.id}
-                className="rounded-2xl border border-border/80 bg-surface/70 px-3 py-2.5 text-sm text-text-secondary shadow-md shadow-black/10"
-              >
-                <p className="font-semibold text-text-primary">{item.name}</p>
-                <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-              </div>
-            ))
+            project.items.map((item) => {
+              const isHighlighted = highlightedItemId === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleItemCardClick(item.id)}
+                  className={`group flex w-full flex-col items-start gap-1 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                    isHighlighted
+                      ? 'border-accent/60 bg-accent/10 text-text-primary'
+                      : 'border-border/80 bg-surface/70 text-text-secondary hover:border-accent/50 hover:bg-accent/5 hover:text-text-primary'
+                  }`}
+                >
+                  <p className="font-semibold text-text-primary">{item.name}</p>
+                  <div className="flex w-full items-center justify-between text-xs text-text-muted">
+                    <span className="uppercase tracking-[0.3em]">{item.type}</span>
+                    <span className="font-semibold text-text-secondary">
+                      {item.frames.length} {item.frames.length === 1 ? 'panel' : 'panels'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
       </div>
     </aside>
 
-    <section className="flex-1 overflow-y-auto bg-background px-6 py-10 lg:px-10">
-      {statusMessage && (
-        <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
-      )}
+    <section className="flex-1 overflow-y-auto bg-background">
+      <div className="px-6 py-10 lg:px-10">
+        {statusMessage && (
+          <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
+        )}
 
-      <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
-        <h2 className="text-2xl font-semibold text-text-primary">Workspace</h2>
-        <p className="mt-3 max-w-2xl text-sm text-text-secondary">
-          Your items appear here as you build them out. Use the action menu to browse assets, add new components, and manage your
-          project details. Drag-and-drop editing and placement tools will arrive in future updates.
-        </p>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          {project.items.map((item) => (
-            <div key={item.id} className="rounded-2xl border border-border/80 bg-surface/60 p-4">
-              <p className="text-sm font-semibold text-text-primary">{item.name}</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
-              <p className="mt-2 text-xs text-text-muted">{item.variant}</p>
-              {item.customDetails && <p className="mt-2 text-xs text-text-muted">Custom: {item.customDetails}</p>}
+        <div className="mt-6 space-y-6">
+          <div className="rounded-3xl border border-border bg-surface-muted/40 p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-semibold text-text-primary">Item Navigator</h2>
+                <p className="mt-2 max-w-2xl text-sm text-text-secondary">
+                  Explore and expand every item in your project. Each strip collects the panels that make up your boards, decks, and posters.
+                </p>
+              </div>
+              <div className="flex items-center gap-2 rounded-full bg-surface/70 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-text-secondary">
+                <span>{project.items.length}</span>
+                <span>{project.items.length === 1 ? 'Item' : 'Items'}</span>
+              </div>
             </div>
-          ))}
-          {project.items.length === 0 && (
-            <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface/60 p-12 text-center">
-              <p className="text-lg font-semibold text-text-primary">No items yet</p>
-              <p className="mt-2 max-w-sm text-sm text-text-muted">
-                Add your first board, card deck, or poster using the action menu on the left.
-              </p>
-              <button
-                type="button"
-                onClick={handleOpenItemDialog}
-                className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
-              >
-                Add an item
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
 
-      <div className="rounded-3xl border border-border bg-surface-muted/40 p-8">
-        <h3 className="text-xl font-semibold text-text-primary">Project Activity</h3>
-        <p className="mt-2 text-sm text-text-muted">
-          Keep track of asset uploads, layout tweaks, and collaborative notes. Future iterations will surface version history and
-          assignable tasks.
-        </p>
-        <ul className="mt-6 space-y-3 text-sm text-text-secondary">
-          <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
-            <span className="font-semibold text-text-primary">{project.name}</span> is ready for exploration. Start adding details
-            to each component.
-          </li>
-          <li className="rounded-2xl border border-border/70 bg-surface/60 px-4 py-3">
-            Upload reference art or icons to the image library to keep inspiration close at hand.
-          </li>
-        </ul>
-        <div className="mt-6 text-xs text-text-muted">
-          Looking for something else? <Link to="/" className="text-accent/80 transition hover:text-accent">Return to the dashboard</Link> to switch projects.
+            {project.items.length === 0 ? (
+              <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/70 bg-surface/60 p-12 text-center">
+                <p className="text-lg font-semibold text-text-primary">No items yet</p>
+                <p className="mt-2 max-w-md text-sm text-text-muted">
+                  Use the action menu to add your first board, deck, or poster. Their film strips will appear here automatically.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleOpenItemDialog}
+                  className="mt-4 rounded-full bg-accent px-5 py-2 text-sm font-semibold text-accent-contrast transition hover:bg-accent-strong"
+                >
+                  Add an item
+                </button>
+              </div>
+            ) : (
+              <div className="mt-8 space-y-6">
+                {project.items.map((item) => {
+                  const isHighlighted = highlightedItemId === item.id;
+                  return (
+                    <div
+                      key={item.id}
+                      ref={registerStripRef(item.id)}
+                      className={`rounded-2xl border border-border/80 bg-surface/70 p-5 transition-all duration-500 ${
+                        isHighlighted
+                          ? 'ring-2 ring-accent/50 ring-offset-2 ring-offset-background shadow-lg shadow-accent/20'
+                          : 'shadow-sm shadow-black/10'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-text-primary">{item.name}</p>
+                          <p className="text-xs uppercase tracking-[0.3em] text-text-muted">{item.type}</p>
+                          <p className="mt-1 text-xs text-text-secondary">{item.variant}</p>
+                          {item.customDetails && (
+                            <p className="mt-1 text-xs text-text-muted">Custom: {item.customDetails}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 rounded-full bg-surface-muted/70 px-3 py-1 text-xs font-semibold text-text-secondary">
+                          <span>{item.frames.length}</span>
+                          <span>{item.frames.length === 1 ? 'Panel' : 'Panels'}</span>
+                        </div>
+                      </div>
+
+                      <div
+                        ref={registerStripScrollRef(item.id)}
+                        className="mt-4 overflow-x-auto pb-2"
+                      >
+                        <div className="flex min-h-[11rem] items-stretch gap-4 pr-2">
+                          {item.frames.map((frame, index) => {
+                            const ratio =
+                              frame.height > 0 ? Math.round((frame.width / frame.height) * 10) / 10 : null;
+                            return (
+                              <div key={frame.id} className="flex w-[12rem] flex-shrink-0 flex-col gap-2">
+                                <div className="flex flex-1 items-center justify-center rounded-2xl border border-border/70 bg-surface/80 p-4 shadow-inner shadow-black/10">
+                                  <div
+                                    className="relative h-full w-full"
+                                    style={{ aspectRatio: `${frame.width} / ${frame.height}` }}
+                                  >
+                                    <div className="absolute inset-0 rounded-xl border border-dashed border-border/80 bg-white shadow-sm" />
+                                    <div className="pointer-events-none absolute inset-2 rounded-lg border border-white/70 shadow-[inset_0_0_20px_rgba(15,23,42,0.08)]" />
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between text-xs text-text-muted">
+                                  <span className="font-semibold uppercase tracking-[0.3em]">Frame {index + 1}</span>
+                                  <span className="text-[0.65rem] text-text-muted/80">
+                                    {ratio !== null ? `${ratio}:1` : '—'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => handleAddFrame(item.id)}
+                            disabled={pendingFrameItemId === item.id}
+                            className={`flex w-[12rem] flex-shrink-0 flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border/60 bg-surface/50 text-text-muted transition hover:border-accent/60 hover:text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                              pendingFrameItemId === item.id ? 'opacity-70' : ''
+                            }`}
+                          >
+                            <span className="text-3xl font-semibold">+</span>
+                            <span className="mt-2 text-xs font-semibold uppercase tracking-[0.3em]">
+                              {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </section>

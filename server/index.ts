@@ -53,6 +53,15 @@ type DbProjectItem = {
   created_at: string;
 };
 
+type DbProjectItemFrame = {
+  id: string;
+  item_id: string;
+  position: number;
+  width: number;
+  height: number;
+  created_at: string;
+};
+
 type DbProjectAsset = {
   id: string;
   project_id: string;
@@ -146,6 +155,16 @@ db.prepare(
   )`
 ).run();
 db.prepare(
+  `CREATE TABLE IF NOT EXISTS project_item_frames (
+    id TEXT PRIMARY KEY,
+    item_id TEXT NOT NULL REFERENCES project_items(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    width REAL NOT NULL,
+    height REAL NOT NULL,
+    created_at TEXT NOT NULL
+  )`
+).run();
+db.prepare(
   `CREATE TABLE IF NOT EXISTS project_assets (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -188,8 +207,24 @@ const selectItemsForProjectStatement = db.prepare(
   `SELECT * FROM project_items WHERE project_id = ? ORDER BY datetime(created_at) ASC`,
 );
 
+const selectItemByIdStatement = db.prepare(
+  `SELECT * FROM project_items WHERE id = ? AND project_id = ?`,
+);
+
 const selectAssetsForProjectStatement = db.prepare(
   `SELECT * FROM project_assets WHERE project_id = ? ORDER BY datetime(created_at) ASC`,
+);
+
+const selectFramesForItemStatement = db.prepare(
+  `SELECT * FROM project_item_frames WHERE item_id = ? ORDER BY position ASC, datetime(created_at) ASC`,
+);
+
+const selectFramesForProjectStatement = db.prepare(
+  `SELECT frames.*
+     FROM project_item_frames AS frames
+     INNER JOIN project_items AS items ON items.id = frames.item_id
+    WHERE items.project_id = ?
+    ORDER BY frames.position ASC, datetime(frames.created_at) ASC`,
 );
 
 const insertProjectStatement = db.prepare(
@@ -210,14 +245,31 @@ const insertProjectItemStatement = db.prepare(
    VALUES (?, ?, ?, ?, ?, ?, ?)`,
 );
 
+const insertProjectItemFrameStatement = db.prepare(
+  `INSERT INTO project_item_frames (id, item_id, position, width, height, created_at)
+   VALUES (?, ?, ?, ?, ?, ?)`,
+);
+
 const insertProjectAssetStatement = db.prepare(
   `INSERT INTO project_assets (id, project_id, name, url, created_at)
    VALUES (?, ?, ?, ?, ?)`,
 );
 
+const countFramesForItemStatement = db.prepare(
+  `SELECT COUNT(*) AS count FROM project_item_frames WHERE item_id = ?`,
+);
+
 const touchProjectStatement = db.prepare(
   `UPDATE projects SET updated_at = ? WHERE id = ? AND user_id = ?`,
 );
+
+type ApiProjectItemFrame = {
+  id: string;
+  position: number;
+  width: number;
+  height: number;
+  createdAt: string;
+};
 
 type ApiProjectItem = {
   id: string;
@@ -225,6 +277,7 @@ type ApiProjectItem = {
   type: string;
   variant: string;
   customDetails?: string;
+  frames: ApiProjectItemFrame[];
 };
 
 type ApiProjectAsset = {
@@ -242,14 +295,14 @@ type ApiProject = {
   favorite: boolean;
 };
 
-function mapItem(row: DbProjectItem): ApiProjectItem {
+function mapFrame(row: DbProjectItemFrame): ApiProjectItemFrame {
   return {
     id: row.id,
-    name: row.name,
-    type: row.type,
-    variant: row.variant,
-    customDetails: row.custom_details ?? undefined,
-  } satisfies ApiProjectItem;
+    position: row.position,
+    width: row.width,
+    height: row.height,
+    createdAt: row.created_at,
+  } satisfies ApiProjectItemFrame;
 }
 
 function mapAsset(row: DbProjectAsset): ApiProjectAsset {
@@ -260,14 +313,104 @@ function mapAsset(row: DbProjectAsset): ApiProjectAsset {
   } satisfies ApiProjectAsset;
 }
 
+function parseDimensions(source: string | null | undefined): { width: number; height: number } | undefined {
+  if (!source) {
+    return undefined;
+  }
+
+  const match = source.match(/(\d+(?:\.\d+)?)\s*[×x]\s*(\d+(?:\.\d+)?)/i);
+  if (!match) {
+    return undefined;
+  }
+
+  const width = Number.parseFloat(match[1]);
+  const height = Number.parseFloat(match[2]);
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return undefined;
+  }
+
+  return { width, height };
+}
+
+type ItemDimensionFallback = {
+  width: number;
+  height: number;
+};
+
+const dimensionFallbacks: Record<string, ItemDimensionFallback> = {
+  board: { width: 24, height: 24 },
+  cardDeck: { width: 2.5, height: 3.5 },
+  questPoster: { width: 210, height: 297 },
+  custom: { width: 1, height: 1 },
+};
+
+function deriveItemDimensions(item: DbProjectItem): ItemDimensionFallback {
+  const fromVariant = parseDimensions(item.variant);
+  if (fromVariant) {
+    return fromVariant;
+  }
+
+  const fromCustom = parseDimensions(item.custom_details);
+  if (fromCustom) {
+    return fromCustom;
+  }
+
+  return dimensionFallbacks[item.type] ?? dimensionFallbacks.custom;
+}
+
+function ensureFramesForItem(item: DbProjectItem): DbProjectItemFrame[] {
+  let frames = selectFramesForItemStatement.all(item.id) as DbProjectItemFrame[];
+  if (frames.length > 0) {
+    return frames;
+  }
+
+  const dimensions = deriveItemDimensions(item);
+  const now = new Date().toISOString();
+  const frameId = crypto.randomUUID();
+
+  const transaction = db.transaction(() => {
+    insertProjectItemFrameStatement.run(frameId, item.id, 0, dimensions.width, dimensions.height, now);
+  });
+
+  try {
+    transaction();
+  } catch (error) {
+    console.error('Failed to backfill frames for item', error);
+  }
+
+  frames = selectFramesForItemStatement.all(item.id) as DbProjectItemFrame[];
+  return frames;
+}
+
 function serializeProject(project: DbProject): ApiProject {
   const items = selectItemsForProjectStatement.all(project.id) as DbProjectItem[];
   const assets = selectAssetsForProjectStatement.all(project.id) as DbProjectAsset[];
+  const frames = selectFramesForProjectStatement.all(project.id) as DbProjectItemFrame[];
+
+  const framesByItemId = new Map<string, DbProjectItemFrame[]>();
+  for (const frame of frames) {
+    const existing = framesByItemId.get(frame.item_id) ?? [];
+    existing.push(frame);
+    framesByItemId.set(frame.item_id, existing);
+  }
 
   return {
     id: project.id,
     name: project.name,
-    items: items.map(mapItem),
+    items: items.map((item) => {
+      const itemFrames = framesByItemId.get(item.id);
+      const normalizedFrames = itemFrames && itemFrames.length > 0 ? itemFrames : ensureFramesForItem(item);
+
+      return {
+        id: item.id,
+        name: item.name,
+        type: item.type,
+        variant: item.variant,
+        customDetails: item.custom_details ?? undefined,
+        frames: normalizedFrames.map(mapFrame),
+      } satisfies ApiProjectItem;
+    }),
     assets: assets.map(mapAsset),
     updatedAt: project.updated_at,
     favorite: Boolean(project.favorite),
@@ -905,15 +1048,31 @@ app.post('/api/projects', requireAuth, (req, res) => {
 
     if (initialItem) {
       const itemId = crypto.randomUUID();
+      const trimmedName = initialItem.name.trim();
+      const trimmedVariant = initialItem.variant.trim();
+      const trimmedCustom = initialItem.customDetails?.trim() || null;
+
       insertProjectItemStatement.run(
         itemId,
         projectId,
-        initialItem.name.trim(),
+        trimmedName,
         initialItem.type,
-        initialItem.variant.trim(),
-        initialItem.customDetails?.trim() || null,
+        trimmedVariant,
+        trimmedCustom,
         now,
       );
+
+      const dimensions = deriveItemDimensions({
+        id: itemId,
+        project_id: projectId,
+        name: trimmedName,
+        type: initialItem.type,
+        variant: trimmedVariant,
+        custom_details: trimmedCustom,
+        created_at: now,
+      });
+
+      insertProjectItemFrameStatement.run(crypto.randomUUID(), itemId, 0, dimensions.width, dimensions.height, now);
     }
   });
 
@@ -982,15 +1141,31 @@ app.post('/api/projects/:projectId/items', requireAuth, (req, res) => {
   const now = new Date().toISOString();
 
   const transaction = db.transaction(() => {
+    const trimmedName = parsed.data.name.trim();
+    const trimmedVariant = parsed.data.variant.trim();
+    const trimmedCustom = parsed.data.customDetails?.trim() || null;
+
     insertProjectItemStatement.run(
       itemId,
       projectId,
-      parsed.data.name.trim(),
+      trimmedName,
       parsed.data.type,
-      parsed.data.variant.trim(),
-      parsed.data.customDetails?.trim() || null,
+      trimmedVariant,
+      trimmedCustom,
       now,
     );
+
+    const dimensions = deriveItemDimensions({
+      id: itemId,
+      project_id: projectId,
+      name: trimmedName,
+      type: parsed.data.type,
+      variant: trimmedVariant,
+      custom_details: trimmedCustom,
+      created_at: now,
+    });
+
+    insertProjectItemFrameStatement.run(crypto.randomUUID(), itemId, 0, dimensions.width, dimensions.height, now);
     touchProjectStatement.run(now, projectId, userId);
   });
 
@@ -1009,6 +1184,50 @@ app.post('/api/projects/:projectId/items', requireAuth, (req, res) => {
   const item = project.items.find((candidate) => candidate.id === itemId);
 
   return res.status(201).json({ item, project });
+});
+
+app.post('/api/projects/:projectId/items/:itemId/frames', requireAuth, (req, res) => {
+  const { projectId, itemId } = req.params;
+  const userId = req.user!.id;
+
+  const project = selectProjectByIdStatement.get(projectId, userId) as DbProject | undefined;
+  if (!project) {
+    return res.status(404).json({ message: 'Project not found.' });
+  }
+
+  const item = selectItemByIdStatement.get(itemId, projectId) as DbProjectItem | undefined;
+  if (!item) {
+    return res.status(404).json({ message: 'Item not found.' });
+  }
+
+  const countRow = countFramesForItemStatement.get(itemId) as { count?: number } | undefined;
+  const position = Number(countRow?.count ?? 0);
+  const dimensions = deriveItemDimensions(item);
+  const now = new Date().toISOString();
+  const frameId = crypto.randomUUID();
+
+  const transaction = db.transaction(() => {
+    insertProjectItemFrameStatement.run(frameId, itemId, position, dimensions.width, dimensions.height, now);
+    touchProjectStatement.run(now, projectId, userId);
+  });
+
+  try {
+    transaction();
+  } catch (error: unknown) {
+    console.error('Failed to add item frame', error);
+    return res.status(500).json({ message: 'Could not add a new frame. Please try again.' });
+  }
+
+  const updatedProject = loadProject(projectId, userId);
+  if (!updatedProject) {
+    return res.status(500).json({ message: 'Project could not be loaded after adding the frame.' });
+  }
+
+  const frame = updatedProject.items
+    .find((candidate) => candidate.id === itemId)
+    ?.frames.find((candidate) => candidate.id === frameId);
+
+  return res.status(201).json({ frame, project: updatedProject });
 });
 
 app.post('/api/projects/:projectId/assets', requireAuth, (req, res) => {
