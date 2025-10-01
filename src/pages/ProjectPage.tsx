@@ -49,10 +49,13 @@ function ProjectPage() {
   const [recentFrame, setRecentFrame] = useState<{ itemId: string; frameId: string } | null>(null);
   const stripRefs = useRef(new Map<string, HTMLDivElement>());
   const stripScrollRefs = useRef(new Map<string, HTMLDivElement>());
+  const listItemRefs = useRef(new Map<string, HTMLButtonElement>());
   const pendingScrollItemIdRef = useRef<string | null>(null);
   const dragHandleActiveRef = useRef<string | null>(null);
   const addButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const addButtonPositions = useRef(new Map<string, DOMRect>());
+  const listItemPositions = useRef(new Map<string, DOMRect>());
+  const stripPositions = useRef(new Map<string, DOMRect>());
 
   const project: Project | null = useMemo(() => {
     if (!projectId) {
@@ -142,6 +145,18 @@ function ProjectPage() {
         stripScrollRefs.current.set(itemId, node);
       } else {
         stripScrollRefs.current.delete(itemId);
+      }
+    },
+    [],
+  );
+
+  const registerListItemRef = useCallback(
+    (itemId: string) => (node: HTMLButtonElement | null) => {
+      if (node) {
+        listItemRefs.current.set(itemId, node);
+      } else {
+        listItemRefs.current.delete(itemId);
+        listItemPositions.current.delete(itemId);
       }
     },
     [],
@@ -567,6 +582,78 @@ function ProjectPage() {
     });
   }, [stripLayoutSignature]);
 
+  useLayoutEffect(() => {
+    const animateElement = (
+      element: HTMLElement,
+      previousRect: DOMRect | undefined,
+      nextRect: DOMRect,
+      prefersReducedMotion: boolean,
+    ) => {
+      if (!previousRect) {
+        return;
+      }
+
+      const deltaX = previousRect.left - nextRect.left;
+      const deltaY = previousRect.top - nextRect.top;
+
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) {
+        return;
+      }
+
+      if (prefersReducedMotion) {
+        return;
+      }
+
+      element.animate(
+        [
+          { transform: `translate(${deltaX}px, ${deltaY}px)` },
+          { transform: 'translate(0, 0)' },
+        ],
+        {
+          duration: 260,
+          easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+        },
+      );
+    };
+
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const prefersReducedMotion = mediaQuery.matches;
+
+    listItemRefs.current.forEach((element, key) => {
+      const previousRect = listItemPositions.current.get(key);
+      const nextRect = element.getBoundingClientRect();
+
+      if (activeDragId !== key) {
+        animateElement(element, previousRect, nextRect, prefersReducedMotion);
+      }
+
+      listItemPositions.current.set(key, nextRect);
+    });
+
+    stripRefs.current.forEach((element, key) => {
+      const previousRect = stripPositions.current.get(key);
+      const nextRect = element.getBoundingClientRect();
+
+      if (activeDragId !== key) {
+        animateElement(element, previousRect, nextRect, prefersReducedMotion);
+      }
+
+      stripPositions.current.set(key, nextRect);
+    });
+
+    listItemPositions.current.forEach((_, key) => {
+      if (!listItemRefs.current.has(key)) {
+        listItemPositions.current.delete(key);
+      }
+    });
+
+    stripPositions.current.forEach((_, key) => {
+      if (!stripRefs.current.has(key)) {
+        stripPositions.current.delete(key);
+      }
+    });
+  }, [activeDragId, orderedItems]);
+
   const asideDynamicClasses = useMemo(
     () =>
       `sticky top-0 flex h-screen flex-shrink-0 flex-col overflow-hidden
@@ -815,6 +902,7 @@ function ProjectPage() {
                   key={item.id}
                   type="button"
                   draggable
+                  ref={registerListItemRef(item.id)}
                   onDragStart={handleItemDragStart(item.id)}
                   onDragEnd={handleDragEnd}
                   onDragOver={(event) => {
@@ -823,12 +911,14 @@ function ProjectPage() {
                   }}
                   onDrop={handleDropOnListItem(item.id)}
                   onClick={() => handleItemCardClick(item.id)}
-                  className={`group flex w-full flex-col items-start gap-1 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                  className={`group flex w-full flex-col items-start gap-1 rounded-2xl border px-3 py-2.5 text-left text-sm shadow-md shadow-black/10 transition-[transform,box-shadow,background-color,border-color,opacity] duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 will-change-transform ${
                     isHighlighted
                       ? 'border-accent/60 bg-accent/10 text-text-primary'
                       : 'border-border/80 bg-surface/70 text-text-secondary hover:border-accent/50 hover:bg-accent/5 hover:text-text-primary'
                   } ${
-                    isDragging ? 'cursor-grabbing opacity-70' : ''
+                    isDragging
+                      ? 'pointer-events-none z-20 -translate-y-0.5 scale-[1.015] cursor-grabbing border-accent/60 bg-surface/90 text-text-primary shadow-[0_22px_46px_rgba(2,6,23,0.45)]'
+                      : ''
                   }`}
                 >
                   <p className="font-semibold text-text-primary">{item.name}</p>
@@ -904,12 +994,14 @@ function ProjectPage() {
                       event.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={handleDropOnStrip(item.id)}
-                    className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
+                    className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-[transform,box-shadow,background-color,opacity] duration-300 will-change-transform ${
                       isHighlighted
                         ? 'bg-surface-muted/20 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
                         : 'bg-surface-muted/40 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
                     } ${
-                      isDragging ? 'cursor-grabbing opacity-95' : ''
+                      isDragging
+                        ? 'pointer-events-none z-10 -translate-y-1 scale-[1.01] cursor-grabbing bg-surface-muted/70 shadow-[0_26px_55px_rgba(2,6,23,0.45)] ring-1 ring-accent/50'
+                        : ''
                     }`}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-4">
