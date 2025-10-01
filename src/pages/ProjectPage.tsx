@@ -981,12 +981,12 @@ function ProjectPage() {
                           return (
                             <div
                               key={frame.id}
-                              className="group/frame relative z-40 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:z-[999] focus-within:z-[999]"
+                              className="group/frame relative z-40 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:-translate-y-2 hover:z-[999] focus-within:-translate-y-2 focus-within:z-[999]"
                             >
                               <div
                                 className={`relative z-10 flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
                                   isRecentFrame ? 'animate-frame-appear' : ''
-                                } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1 group-hover/frame:z-30`}
+                                } group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1 group-hover/frame:z-30`}
                                 onAnimationEnd={() => {
                                   if (recentFrame?.itemId === item.id && recentFrame.frameId === frame.id) {
                                     setRecentFrame(null);
