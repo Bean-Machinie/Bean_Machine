@@ -249,16 +249,10 @@ function ProjectPage() {
         id: 'search',
         label: 'Search in Project',
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-            <path
-              d="M10.5 4.5a6 6 0 014.8 9.6l3.7 3.7a.75.75 0 11-1.06 1.06l-3.7-3.7A6 6 0 114.5 10.5a6 6 0 016-6z"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="size-5">
+          <path fill-rule="evenodd" d="M10.5 3.75a6.75 6.75 0 1 0 0 13.5 6.75 6.75 0 0 0 0-13.5ZM2.25 10.5a8.25 8.25 0 1 1 14.59 5.28l4.69 4.69a.75.75 0 1 1-1.06 1.06l-4.69-4.69A8.25 8.25 0 0 1 2.25 10.5Z" clip-rule="evenodd" />
           </svg>
+
         ),
         onClick: handleOpenSearchPanel,
         isActive: isSearchPanelOpen,
@@ -267,16 +261,10 @@ function ProjectPage() {
         id: 'library',
         label: 'Image Library',
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-            <path
-              d="M4.5 6.75A2.25 2.25 0 016.75 4.5h10.5a2.25 2.25 0 012.25 2.25v10.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 17.25zm3 1.5h9a.75.75 0 01.6 1.2l-2.4 3.2a.75.75 0 01-1.08.12l-2.01-1.68a.75.75 0 00-1.02.03l-1.32 1.32a.75.75 0 01-1.24-.36l-.75-3a.75.75 0 01.72-.93z"
-              fill="none"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="1.5"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
           </svg>
+
         ),
         onClick: handleOpenAssetBrowser,
         isActive: isAssetBrowserOpen,
