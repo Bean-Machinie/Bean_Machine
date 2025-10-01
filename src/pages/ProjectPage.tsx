@@ -604,16 +604,70 @@ function ProjectPage() {
         return;
       }
 
-      element.animate(
-        [
-          { transform: `translate(${deltaX}px, ${deltaY}px)` },
-          { transform: 'translate(0, 0)' },
-        ],
-        {
-          duration: 260,
-          easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
-        },
-      );
+      const supportsWAAPI = typeof element.animate === 'function';
+
+      if (supportsWAAPI) {
+        if (typeof element.getAnimations === 'function') {
+          element.getAnimations().forEach((animation) => {
+            animation.cancel();
+          });
+        }
+        element.animate(
+          [
+            { transform: `translate(${deltaX}px, ${deltaY}px)` },
+            { transform: 'translate(0, 0)' },
+          ],
+          {
+            duration: 260,
+            easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
+          },
+        );
+        return;
+      }
+
+      const originalTransition = element.style.transition;
+      const originalTransform = element.style.transform;
+
+      element.style.transition = 'none';
+      element.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+
+      const cleanup = () => {
+        element.style.transition = originalTransition;
+        element.style.transform = originalTransform;
+      };
+
+      let fallbackTimeoutId: number | null = null;
+
+      const handleTransitionEnd = () => {
+        cleanup();
+        element.removeEventListener('transitionend', handleTransitionEnd);
+        if (fallbackTimeoutId !== null) {
+          window.clearTimeout(fallbackTimeoutId);
+        }
+      };
+
+      element.addEventListener('transitionend', handleTransitionEnd);
+
+      void element.getBoundingClientRect();
+
+      const scheduleAnimation =
+        typeof window.requestAnimationFrame === 'function'
+          ? window.requestAnimationFrame.bind(window)
+          : (callback: FrameRequestCallback) =>
+              window.setTimeout(
+                () => callback(typeof performance !== 'undefined' ? performance.now() : Date.now()),
+                16,
+              );
+
+      scheduleAnimation(() => {
+        element.style.transition = 'transform 260ms cubic-bezier(0.33, 1, 0.68, 1)';
+        element.style.transform = 'translate(0, 0)';
+      });
+
+      fallbackTimeoutId = window.setTimeout(() => {
+        element.removeEventListener('transitionend', handleTransitionEnd);
+        cleanup();
+      }, 320);
     };
 
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
