@@ -906,8 +906,8 @@ function ProjectPage() {
                     onDrop={handleDropOnStrip(item.id)}
                     className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
                       isHighlighted
-                        ? 'bg-surface/40 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
-                        : 'hover:bg-surface/20 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
+                        ? 'bg-surface-muted/20 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
+                        : 'bg-surface-muted/40 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
                     } ${
                       isDragging ? 'cursor-grabbing opacity-95' : ''
                     }`}
