@@ -569,10 +569,12 @@ function ProjectPage() {
 
   const asideDynamicClasses = useMemo(
     () =>
-      `sticky top-0 self-start flex h-screen flex-shrink-0 flex-col overflow-hidden
-      border-r border-border bg-surface-muted/70 transition-all duration-300
-      ${isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'}`
-    ,
+      [
+        'sticky top-0 z-30 self-start',
+        'flex h-[100dvh] flex-shrink-0 flex-col overflow-hidden',
+        'border-r border-border bg-surface-muted/70 transition-all duration-300',
+        isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]',
+      ].join(' '),
     [isCollapsed],
   );
 
@@ -676,7 +678,7 @@ function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-start bg-background">
+    <div className="flex h-[100dvh] w-full items-start bg-background">
       <aside className={asideDynamicClasses}>
       {/* HEADER (updated) */}
       <div className="relative border-b border-border/80 px-3 py-4">
@@ -846,7 +848,7 @@ function ProjectPage() {
       </div>
     </aside>
 
-    <section className="flex-1 overflow-y-auto bg-background">
+    <section className="flex-1 h-full overflow-y-auto bg-background">
       <div className="px-4 py-10 sm:px-6 lg:px-8">
         {statusMessage && (
           <div className="rounded-2xl border border-accent/40 bg-accent/10 px-4 py-3 text-sm text-accent/80">{statusMessage}</div>
@@ -959,8 +961,11 @@ function ProjectPage() {
                       </div>
                     </div>
 
-                    <div ref={registerStripScrollRef(item.id)} className="overflow-x-auto pb-2">
-                      <div className="flex items-end gap-3 pr-2">
+                    <div
+                      ref={registerStripScrollRef(item.id)}
+                      className="overflow-x-auto overflow-y-visible pb-2"
+                    >
+                      <div className="flex items-start gap-3 pr-2">
                         {item.frames.map((frame) => {
                           const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
                           const baseSize = 86;
@@ -976,7 +981,7 @@ function ProjectPage() {
                           return (
                             <div
                               key={frame.id}
-                              className="group/frame relative z-0 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[z-index] duration-200 group-hover/frame:z-20"
+                              className="group/frame relative z-0 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:z-40 focus-within:z-40 group-hover/frame:z-40"
                             >
                               <div
                                 className={`relative z-10 flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
