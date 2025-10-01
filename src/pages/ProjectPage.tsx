@@ -906,7 +906,7 @@ function ProjectPage() {
                       event.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={handleDropOnStrip(item.id)}
-                    className={`group/strip relative flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
+                    className={`group/strip relative isolate overflow-visible flex flex-col gap-4 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
                       isHighlighted
                         ? 'bg-surface-muted/70 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
                         : 'bg-surface-muted/30 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
@@ -914,7 +914,7 @@ function ProjectPage() {
                       isDragging ? 'cursor-grabbing opacity-95' : ''
                     }`}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div className="relative z-0 flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <button
                           type="button"
@@ -963,7 +963,7 @@ function ProjectPage() {
 
                     <div
                       ref={registerStripScrollRef(item.id)}
-                      className="overflow-x-auto overflow-y-visible pb-2"
+                      className="relative z-30 overflow-x-auto overflow-y-visible pb-2"
                     >
                       <div className="flex items-start gap-3 pr-2">
                         {item.frames.map((frame) => {
@@ -981,7 +981,7 @@ function ProjectPage() {
                           return (
                             <div
                               key={frame.id}
-                              className="group/frame relative z-0 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:z-40 focus-within:z-40 group-hover/frame:z-40"
+                              className="group/frame relative z-40 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:z-[999] focus-within:z-[999]"
                             >
                               <div
                                 className={`relative z-10 flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
