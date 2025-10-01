@@ -569,7 +569,7 @@ function ProjectPage() {
 
   const asideDynamicClasses = useMemo(
     () =>
-      `sticky top-0 flex h-screen flex-shrink-0 flex-col overflow-hidden
+      `sticky top-0 self-start flex h-screen flex-shrink-0 flex-col overflow-hidden
       border-r border-border bg-surface-muted/70 transition-all duration-300
       ${isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]'}`
     ,
@@ -676,7 +676,7 @@ function ProjectPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full bg-background">
+    <div className="flex min-h-screen w-full items-start bg-background">
       <aside className={asideDynamicClasses}>
       {/* HEADER (updated) */}
       <div className="relative border-b border-border/80 px-3 py-4">
@@ -961,9 +961,8 @@ function ProjectPage() {
 
                     <div ref={registerStripScrollRef(item.id)} className="overflow-x-auto pb-2">
                       <div className="flex items-end gap-3 pr-2">
-                        {item.frames.map((frame, index) => {
+                        {item.frames.map((frame) => {
                           const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
-                          const ratioLabel = ratioValue !== null ? Math.round(ratioValue * 10) / 10 : null;
                           const baseSize = 86;
                           const widthPercent = ratioValue !== null && ratioValue < 1 ? baseSize * ratioValue : baseSize;
                           const heightPercent = ratioValue !== null && ratioValue > 1 ? baseSize / ratioValue : baseSize;
@@ -975,11 +974,14 @@ function ProjectPage() {
                           const isRecentFrame = recentFrame?.itemId === item.id && recentFrame.frameId === frame.id;
 
                           return (
-                            <div key={frame.id} className="group/frame flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center">
+                            <div
+                              key={frame.id}
+                              className="group/frame relative z-0 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[z-index] duration-200 group-hover/frame:z-20"
+                            >
                               <div
-                                className={`relative flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
+                                className={`relative z-10 flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
                                   isRecentFrame ? 'animate-frame-appear' : ''
-                                } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1`}
+                                } group-hover/frame:-translate-y-2 group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1 group-hover/frame:z-30`}
                                 onAnimationEnd={() => {
                                   if (recentFrame?.itemId === item.id && recentFrame.frameId === frame.id) {
                                     setRecentFrame(null);
@@ -992,10 +994,6 @@ function ProjectPage() {
                                     style={visualStyle}
                                   />
                                 </div>
-                              </div>
-                              <div className="flex flex-col items-center gap-0.5 text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">
-                                <span className="font-semibold text-text-secondary">Frame {index + 1}</span>
-                                <span className="text-[0.6rem] text-text-muted/80">{ratioLabel !== null ? `${ratioLabel}:1` : '—'}</span>
                               </div>
                             </div>
                           );
