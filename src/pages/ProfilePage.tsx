@@ -164,7 +164,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-12 sm:py-16">
+    <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-10 px-6 py-12 sm:py-6">
       <header className="space-y-2">
         <h2 className="text-3xl font-semibold text-text-primary">Account</h2>
         <p className="text-sm text-text-secondary">
