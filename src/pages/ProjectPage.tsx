@@ -906,7 +906,7 @@ function ProjectPage() {
                       event.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={handleDropOnStrip(item.id)}
-                    className={`group/strip relative isolate overflow-visible flex flex-col gap-2 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
+                    className={`group/strip relative overflow-visible flex flex-col gap-2 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
                       isHighlighted
                         ? 'bg-surface-muted/70 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
                         : 'bg-surface-muted/30 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
