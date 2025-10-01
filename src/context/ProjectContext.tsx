@@ -5,12 +5,21 @@ import { useAuth } from './AuthContext';
 
 export type ProjectItemType = 'board' | 'cardDeck' | 'questPoster' | 'custom';
 
+export interface ProjectItemFrame {
+  id: string;
+  position: number;
+  width: number;
+  height: number;
+  createdAt: string;
+}
+
 export interface ProjectItem {
   id: string;
   name: string;
   type: ProjectItemType;
   variant: string;
   customDetails?: string;
+  frames: ProjectItemFrame[];
 }
 
 export interface ProjectAsset {
@@ -52,6 +61,7 @@ interface ProjectContextValue {
   createProject: (input: NewProjectInput) => Promise<Project>;
   updateProjectName: (projectId: string, name: string) => Promise<void>;
   addItemToProject: (projectId: string, item: ItemInput) => Promise<ProjectItem | null>;
+  addFrameToItem: (projectId: string, itemId: string) => Promise<ProjectItemFrame | null>;
   addAssetsToProject: (projectId: string, assets: AssetInput[]) => Promise<ProjectAsset[]>;
   removeAssetsFromProject: (projectId: string, assetIds: string[]) => Promise<void>;
   toggleFavorite: (projectId: string) => Promise<void>;
@@ -146,6 +156,25 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     [user],
   );
 
+  const addFrameToItem = useCallback(
+    async (projectId: string, itemId: string) => {
+      if (!user) {
+        throw new Error('You must be signed in to update projects.');
+      }
+
+      const data = await apiFetch<{ frame: ProjectItemFrame | null; project: Project }>(
+        `/api/projects/${projectId}/items/${itemId}/frames`,
+        {
+          method: 'POST',
+        },
+      );
+
+      setProjects((prev) => prev.map((project) => (project.id === projectId ? data.project : project)));
+      return data.frame ?? null;
+    },
+    [user],
+  );
+
   const addAssetsToProject = useCallback(
     async (projectId: string, assets: AssetInput[]) => {
       if (!user) {
@@ -211,11 +240,13 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       createProject,
       updateProjectName,
       addItemToProject,
+      addFrameToItem,
       addAssetsToProject,
       removeAssetsFromProject,
       toggleFavorite,
     }),
     [
+      addFrameToItem,
       addAssetsToProject,
       addItemToProject,
       createProject,
