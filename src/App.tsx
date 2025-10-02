@@ -6,6 +6,8 @@ import { useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import ProfilePage from './pages/ProfilePage';
 import ProjectPage from './pages/ProjectPage';
+import HelpPage from './pages/HelpPage';
+import UpgradePage from './pages/UpgradePage';
 import VerifyPage from './pages/VerifyPage';
 import AuthOverlay from './components/AuthOverlay';
 import ProfileMenu from './components/ProfileMenu';
@@ -95,14 +97,16 @@ function App() {
         <Routes>
           <Route
             path="/"
-            element={<Home onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />}
+            element={<Home onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />} 
           />
           <Route
             path="/verify"
-            element={<VerifyPage onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />}
+            element={<VerifyPage onOpenSignIn={() => openAuth('signin')} onOpenSignUp={() => openAuth('signup')} />} 
           />
+          <Route path="/help" element={<HelpPage />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/profile" element={<ProfilePage />} />
+            <Route path="/upgrade" element={<UpgradePage />} />
           </Route>
           <Route path="/projects/:projectId" element={<ProjectPage />} />
         </Routes>
@@ -120,3 +124,6 @@ function App() {
 }
 
 export default App;
+
+
+

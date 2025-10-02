@@ -12,6 +12,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import ImageAssetBrowser from '../components/ImageAssetBrowser';
 import NewItemDialog from '../components/NewItemDialog';
+import ProjectActionMenuSettings from '../components/ProjectActionMenuSettings';
+import ProjectSettingsDialog from '../components/ProjectSettingsDialog';
 import { AssetInput, ItemInput, Project } from '../context/ProjectContext';
 import { findProject, useProjects } from '../context/ProjectContext';
 
@@ -40,6 +42,7 @@ function ProjectPage() {
   const [isSearchPanelOpen, setSearchPanelOpen] = useState(false);
   const [isItemDialogOpen, setItemDialogOpen] = useState(false);
   const [isAssetBrowserOpen, setAssetBrowserOpen] = useState(false);
+  const [isProjectSettingsOpen, setProjectSettingsOpen] = useState(false);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [highlightedItemId, setHighlightedItemId] = useState<string | null>(null);
   const [pendingFrameItemId, setPendingFrameItemId] = useState<string | null>(null);
@@ -117,6 +120,14 @@ function ProjectPage() {
 
   const handleOpenAssetBrowser = useCallback(() => setAssetBrowserOpen(true), []);
   const handleCloseAssetBrowser = useCallback(() => setAssetBrowserOpen(false), []);
+  const handleOpenProjectSettingsDialog = useCallback(() => setProjectSettingsOpen(true), []);
+  const handleCloseProjectSettingsDialog = useCallback(() => setProjectSettingsOpen(false), []);
+  const handleNavigateHelp = useCallback(() => {
+    navigate('/help');
+  }, [navigate]);
+  const handleNavigateUpgrade = useCallback(() => {
+    navigate('/upgrade');
+  }, [navigate]);
 
   const registerStripRef = useCallback(
     (itemId: string) => (node: HTMLDivElement | null) => {
@@ -379,7 +390,7 @@ function ProjectPage() {
   const asideDynamicClasses = useMemo(
     () =>
       [
-        'sticky top-0 z-30 self-start',
+        'sticky top-0 z-30 self-start relative',
         'flex h-[100dvh] flex-shrink-0 flex-col overflow-hidden',
         'border-r border-border bg-surface-muted/70 transition-all duration-300',
         isCollapsed ? 'w-[4.75rem]' : 'w-[18.5rem]',
@@ -420,7 +431,7 @@ function ProjectPage() {
         id: 'add',
         label: 'Add New Item',
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-6 w-6" aria-hidden="true">
             <path
               d="M12 5.25v13.5m-6.75-6.75h13.5"
               fill="none"
@@ -534,7 +545,7 @@ function ProjectPage() {
           </div>
         </div>
 
-        {/* ABSOLUTE toggle button pinned to the headerï¿½s right edge */}
+        {/* ABSOLUTE toggle button pinned to the header?s right edge */}
         <button
           type="button"
           onClick={handleToggleCollapsed}
@@ -639,6 +650,19 @@ function ProjectPage() {
           )}
         </div>
       </div>
+      <div className="absolute inset-x-0 bottom-3 z-40 px-3">
+        {!isCollapsed && (
+          <p className="text-left text-[0.65rem] uppercase tracking-[0.3em] text-text-muted">Project Controls</p>
+        )}
+        <div className="flex items-center justify-start">
+          <ProjectActionMenuSettings
+            collapsed={isCollapsed}
+            onOpenProjectSettings={handleOpenProjectSettingsDialog}
+            onNavigateHelp={handleNavigateHelp}
+            onNavigateUpgrade={handleNavigateUpgrade}
+          />
+        </div>
+      </div>
     </aside>
 
     <section className="flex-1 h-full overflow-y-auto bg-background">
@@ -694,19 +718,9 @@ function ProjectPage() {
                     <header className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <div
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-surface/30 text-text-muted"
+                          className="flex h-0 w-0 items-center justify-center rounded-xl border border-transparent bg-surface/30 text-text-muted"
                           aria-hidden="true"
                         >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            strokeWidth="1.5"
-                            stroke="currentColor"
-                            className="h-5 w-5"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 12h16M4 16h16" />
-                          </svg>
                         </div>
                         <div className="min-w-0 space-y-1">
                           <p className="truncate text-base font-semibold text-text-primary">{item.name}</p>
@@ -724,7 +738,7 @@ function ProjectPage() {
                     </header>
 
                     <div
-                      className="relative mt-3 overflow-x-auto overflow-y-visible pb-5"
+                      className="relative mt-3 overflow-x-auto overflow-y-visible bg-surface-muted/40 px-3 pb-5"
                     >
                       <div className="flex items-end gap-1 pr-8">
                         {item.frames.map((frame, index) => {
@@ -823,7 +837,7 @@ function ProjectPage() {
               className="flex h-9 w-9 items-center justify-center rounded-full border border-border/70 text-text-secondary transition hover:border-accent hover:text-accent/80"
               aria-label="Close search"
             >
-              ✕
+              ?
             </button>
           </div>
 
@@ -895,6 +909,13 @@ function ProjectPage() {
       </div>
     )}
 
+    <ProjectSettingsDialog
+      open={isProjectSettingsOpen}
+      onClose={handleCloseProjectSettingsDialog}
+      project={project}
+      onRenameProject={updateProjectName}
+    />
+
     <ImageAssetBrowser {...assetBrowserProps} />
   </div>
 );
@@ -902,3 +923,16 @@ function ProjectPage() {
 }
 
 export default ProjectPage;
+
+
+
+
+
+
+
+
+
+
+
+
+
