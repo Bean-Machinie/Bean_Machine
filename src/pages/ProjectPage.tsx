@@ -1,4 +1,4 @@
-import type { CSSProperties, DragEvent } from 'react';
+﻿import type { DragEvent } from 'react';
 import {
   ChangeEvent,
   useCallback,
@@ -51,9 +51,7 @@ function ProjectPage() {
   const stripScrollRefs = useRef(new Map<string, HTMLDivElement>());
   const pendingScrollItemIdRef = useRef<string | null>(null);
   const dragHandleActiveRef = useRef<string | null>(null);
-  const addButtonRefs = useRef(new Map<string, HTMLButtonElement>());
-  const addButtonPositions = useRef(new Map<string, DOMRect>());
-
+  const stripPositionSnapshots = useRef(new Map<string, DOMRect>());
   const project: Project | null = useMemo(() => {
     if (!projectId) {
       return null;
@@ -142,18 +140,6 @@ function ProjectPage() {
         stripScrollRefs.current.set(itemId, node);
       } else {
         stripScrollRefs.current.delete(itemId);
-      }
-    },
-    [],
-  );
-
-  const registerAddButtonRef = useCallback(
-    (itemId: string) => (node: HTMLButtonElement | null) => {
-      if (node) {
-        addButtonRefs.current.set(itemId, node);
-      } else {
-        addButtonRefs.current.delete(itemId);
-        addButtonPositions.current.delete(itemId);
       }
     },
     [],
@@ -539,10 +525,9 @@ function ProjectPage() {
         .join('|'),
     [orderedItems],
   );
-
   useLayoutEffect(() => {
-    addButtonRefs.current.forEach((element, key) => {
-      const previousRect = addButtonPositions.current.get(key);
+    stripRefs.current.forEach((element, key) => {
+      const previousRect = stripPositionSnapshots.current.get(key);
       const nextRect = element.getBoundingClientRect();
 
       if (previousRect) {
@@ -556,14 +541,14 @@ function ProjectPage() {
               { transform: 'translate(0, 0)' },
             ],
             {
-              duration: 320,
+              duration: 360,
               easing: 'cubic-bezier(0.33, 1, 0.68, 1)',
             },
           );
         }
       }
 
-      addButtonPositions.current.set(key, nextRect);
+      stripPositionSnapshots.current.set(key, nextRect);
     });
   }, [stripLayoutSignature]);
 
@@ -895,7 +880,7 @@ function ProjectPage() {
                 const isHighlighted = highlightedItemId === item.id;
                 const isDragging = activeDragId === item.id;
                 return (
-                  <div
+                  <article
                     key={item.id}
                     ref={registerStripRef(item.id)}
                     draggable
@@ -906,20 +891,20 @@ function ProjectPage() {
                       event.dataTransfer.dropEffect = 'move';
                     }}
                     onDrop={handleDropOnStrip(item.id)}
-                    className={`group/strip relative overflow-visible flex flex-col gap-2 rounded-[1.75rem] px-3 py-4 transition-all duration-300 ${
+                    className={`group/strip relative flex flex-col gap-0 overflow-visible rounded-[1.75rem] border border-border/60 bg-surface-muted/40 px-4 py-5 shadow-[0_10px_32px_rgba(15,23,42,0.28)] transition-all duration-300 ${
                       isHighlighted
-                        ? 'bg-surface-muted/70 shadow-[0_18px_45px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
-                        : 'bg-surface-muted/30 hover:bg-surface-muted/70 hover:shadow-[0_14px_40px_rgba(2,6,23,0.35)]'
+                        ? 'border-accent/60 bg-surface-muted/70 shadow-[0_26px_60px_rgba(2,6,23,0.45)] ring-1 ring-accent/40'
+                        : 'hover:bg-surface-muted/55 hover:shadow-[0_20px_54px_rgba(2,6,23,0.35)]'
                     } ${
                       isDragging ? 'cursor-grabbing opacity-95' : ''
                     }`}
                   >
-                    <div className="relative z-0 flex flex-wrap items-center justify-between gap-4">
+                    <header className="flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <button
                           type="button"
-                          aria-label="Reorder film strip"
-                          className="group/handle flex h-9 w-9 items-center justify-center rounded-full text-text-muted transition-colors duration-200 hover:bg-surface/40 hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+                          aria-label="Reorder frame strip"
+                          className="group/handle flex h-10 w-10 items-center justify-center rounded-xl border border-transparent bg-surface/30 text-text-muted transition-colors duration-200 hover:border-accent/30 hover:text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
                           onPointerDown={() => {
                             dragHandleActiveRef.current = item.id;
                           }}
@@ -943,7 +928,7 @@ function ProjectPage() {
                             stroke="currentColor"
                             className="h-5 w-5"
                           >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 12h16M4 16h16" />
                           </svg>
                         </button>
                         <div className="min-w-0 space-y-1">
@@ -959,69 +944,78 @@ function ProjectPage() {
                         <span>{item.frames.length}</span>
                         <span>{item.frames.length === 1 ? 'Panel' : 'Panels'}</span>
                       </div>
-                    </div>
+                    </header>
 
                     <div
                       ref={registerStripScrollRef(item.id)}
-                      className="relative z-30 mt-3 overflow-x-auto overflow-y-visible pb-2"
+                      className="relative mt-3 overflow-x-auto overflow-y-visible pb-5"
                     >
-                      <div className="flex items-start gap-3 pr-2">
-                        {item.frames.map((frame) => {
-                          const ratioValue = frame.height > 0 ? frame.width / frame.height : null;
-                          const baseSize = 86;
-                          const widthPercent = ratioValue !== null && ratioValue < 1 ? baseSize * ratioValue : baseSize;
-                          const heightPercent = ratioValue !== null && ratioValue > 1 ? baseSize / ratioValue : baseSize;
-                          const visualStyle: CSSProperties = {
-                            width: `${widthPercent}%`,
-                            height: `${heightPercent}%`,
-                            margin: 'auto',
-                          };
+                      <div className="flex items-end gap-1 pr-8">
+                        {item.frames.map((frame, index) => {
+                          const ratioValue = frame.height > 0 ? frame.width / frame.height : 1;
+                          const basePercent = 82;
+                          const widthPercent = ratioValue >= 1 ? basePercent : basePercent * ratioValue;
+                          const heightPercent = ratioValue >= 1 ? basePercent / ratioValue : basePercent;
                           const isRecentFrame = recentFrame?.itemId === item.id && recentFrame.frameId === frame.id;
 
                           return (
                             <div
                               key={frame.id}
-                              className="group/frame relative z-50 flex w-[8rem] flex-shrink-0 flex-col items-center text-center transition-[transform,z-index] duration-200 hover:-translate-y-4 hover:z-[999] focus-within:-translate-y-2 focus-within:z-[999]"
+                              className="group/frame relative flex mt-4 h-[7.5rem] w-[7.5rem] flex-shrink-0 items-end justify-center rounded-[0.85rem] bg-gradient-to-br from-surface/90 via-surface/60 to-surface/50 p-[0.35rem] shadow-[0_18px_42px_rgba(2,6,23,0.45)] transition-transform duration-300 ease-out hover:-translate-y-3 hover:rotate-[4.5deg] hover:shadow-[0_32px_64px_rgba(15,23,42,0.5)] focus-within:-translate-y-2 focus-within:rotate-[1deg] focus-within:shadow-[0_28px_56px_rgba(15,23,42,0.45)]"
                             >
                               <div
-                                className={`relative z-10 flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/70 shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-transform duration-200 ease-out will-change-transform ${
-                                  isRecentFrame ? 'animate-frame-appear' : ''
-                                } group-hover/frame:scale-[1.06] group-hover/frame:-rotate-1 group-hover/frame:z-30`}
+                                tabIndex={0}
+                                className={`relative flex h-full w-full items-center justify-center rounded-[0.6rem] border border-white/10 bg-white/5 transition-all duration-300 ease-out ${
+                                  isRecentFrame ? 'animate-frame-appear ring-2 ring-accent/70' : 'ring-0'
+                                }`}
                                 onAnimationEnd={() => {
                                   if (recentFrame?.itemId === item.id && recentFrame.frameId === frame.id) {
                                     setRecentFrame(null);
                                   }
                                 }}
                               >
-                                <div className="relative flex h-[86%] w-[86%] items-center justify-center rounded-[1.25rem] border border-white/5 bg-white/10 shadow-[inset_0_0_25px_rgba(2,6,23,0.35)]">
-                                  <div
-                                    className="rounded-xl bg-white/90 shadow-[inset_0_0_22px_rgba(15,23,42,0.22)]"
-                                    style={visualStyle}
-                                  />
-                                </div>
+                                <span
+                                  className="flex items-center justify-center rounded-xl bg-white/85 shadow-[inset_0_0_22px_rgba(15,23,42,0.22)]"
+                                  style={{
+                                    width: `${widthPercent}%`,
+                                    height: `${heightPercent}%`,
+                                  }}
+                                >
+                                  <span className="sr-only">Frame {index + 1}</span>
+                                </span>
                               </div>
                             </div>
                           );
                         })}
-                        <button
-                          ref={registerAddButtonRef(item.id)}
-                          type="button"
-                          onClick={() => handleAddFrame(item.id)}
-                          disabled={pendingFrameItemId === item.id}
-                          className={`group/add flex w-[8rem] flex-shrink-0 flex-col items-center gap-2 text-center transition-all duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
-                            pendingFrameItemId === item.id ? 'cursor-wait opacity-70' : 'hover:-translate-y-2 hover:scale-[1.04]'
-                          }`}
-                        >
-                          <div className="flex aspect-square w-full items-center justify-center rounded-[1.5rem] bg-surface/30 text-3xl font-semibold text-text-muted shadow-[0_16px_38px_rgba(2,6,23,0.55)] transition-colors duration-200 group-hover/add:bg-surface/50 group-hover/add:text-accent">
-                            +
-                          </div>
-                          <span className="text-[0.65rem] font-semibold uppercase tracking-[0.3em] text-text-muted transition-colors duration-200 group-hover/add:text-accent">
-                            {pendingFrameItemId === item.id ? 'Adding…' : 'Add blank panel'}
-                          </span>
-                        </button>
+                        <div className="sticky right-0 mb-1 flex h-[5rem] w-[5rem] flex-shrink-0 items-stretch">
+                          <button
+                            type="button"
+                            onClick={() => handleAddFrame(item.id)}
+                            disabled={pendingFrameItemId === item.id}
+                            className={`group/add relative flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-[0.85rem] border border-dashed border-border/70 bg-surface/30 text-center text-xs font-semibold uppercase tracking-[0.3em] text-text-muted shadow-[0_16px_38px_rgba(2,6,23,0.45)] transition-all duration-300 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 ${
+                              pendingFrameItemId === item.id ? 'cursor-wait opacity-70' : 'hover:-translate-y-2 hover:scale-[1.02] hover:text-accent'
+                            }`}
+                            aria-label="Add frame"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-6 w-6 text-current transition-colors duration-200 group-hover/add:text-accent"
+                              aria-hidden="true"
+                              >
+                              <path
+                              fillRule="evenodd"
+                              d="M5.625 1.5H9a3.75 3.75 0 0 1 3.75 3.75v1.875c0 1.036.84 1.875 1.875 1.875H16.5a3.75 3.75 0 0 1 3.75 3.75v7.875c0 1.035-.84 1.875-1.875 1.875H5.625a1.875 1.875 0 0 1-1.875-1.875V3.375c0-1.036.84-1.875 1.875-1.875ZM12.75 12a.75.75 0 0 0-1.5 0v2.25H9a.75.75 0 0 0 0 1.5h2.25V18a.75.75 0 0 0 1.5 0v-2.25H15a.75.75 0 0 0 0-1.5h-2.25V12Z"
+                              clipRule="evenodd"
+                              />
+                              <path d="M14.25 5.25a5.23 5.23 0 0 0-1.279-3.434 9.768 9.768 0 0 1 6.963 6.963A5.23 5.23 0 0 0 16.5 7.5h-1.875a.375.375 0 0 1-.375-.375V5.25Z" />
+                              </svg>
+                          </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </article>
                 );
               })}
             </div>
