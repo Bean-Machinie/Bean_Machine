@@ -3,6 +3,16 @@ from __future__ import annotations
 from physics_studio.core.run.trajectory import Trajectory
 
 
+def sample_index(time_s: float, dt: float, sample_every: int, num_samples: int) -> int:
+    if num_samples <= 0:
+        return 0
+    step = dt * max(sample_every, 1)
+    if step <= 0:
+        return 0
+    raw_index = int(round(time_s / step))
+    return max(0, min(raw_index, num_samples - 1))
+
+
 def sample_trajectory(trajectory: Trajectory, time_s: float) -> list[list[float]]:
     times = trajectory.times
     if not times:

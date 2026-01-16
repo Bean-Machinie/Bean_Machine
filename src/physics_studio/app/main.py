@@ -16,12 +16,18 @@ from physics_studio.authoring.commands import (
 )
 from physics_studio.authoring.validation import validate_scenario
 from physics_studio.core.run.simulator import run_simulation
-from physics_studio.render.sampling import sample_trajectory
+from physics_studio.render.sampling import sample_index
 from physics_studio.render.export import RenderJob, render_video
 from physics_studio.render.presets import PRESETS
 from physics_studio.scenario.io import load_scenario, save_scenario
 from physics_studio.scenario.models import CameraKeyframe, Particle, Scenario, ScenarioSettings
 from physics_studio.app.viewport import ViewportWidget
+from physics_studio.app.playback import (
+    advance_playback_time,
+    select_preview_positions,
+    should_run_simulation,
+    status_label,
+)
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -41,6 +47,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self._scrub_time_s = 0.0
         self._scrub_positions: dict[str, tuple[float, float, float]] = {}
         self._keyframe_updating = False
+        self._needs_simulation = True
+        self._is_simulating = False
+        self._playback_timer = QtCore.QTimer(self)
+        self._playback_timer.timeout.connect(self._on_playback_tick)
+        self._playback_time_s = 0.0
+        self._playback_speed = 0.25
+        self._sim_thread: QtCore.QThread | None = None
+        self._sim_worker: _SimulationWorker | None = None
+        self._auto_play_on_sim_complete = False
 
         self._build_ui()
         self._refresh_ui(self._manager.scenario)
@@ -82,6 +97,15 @@ class MainWindow(QtWidgets.QMainWindow):
         keyframe_buttons.addWidget(delete_keyframe)
         left_layout.addLayout(keyframe_buttons)
 
+        self._dev_mode_checkbox = QtWidgets.QCheckBox("Developer Mode")
+        self._dev_mode_checkbox.stateChanged.connect(self._toggle_developer_mode)
+        left_layout.addWidget(self._dev_mode_checkbox)
+        self._debug_label = QtWidgets.QLabel()
+        self._debug_label.setWordWrap(True)
+        self._debug_label.setMinimumHeight(120)
+        self._debug_label.setVisible(False)
+        left_layout.addWidget(self._debug_label)
+
         viewport = ViewportWidget()
         viewport.body_selected.connect(self._on_viewport_selected)
         viewport.drag_started.connect(self._on_drag_started)
@@ -102,8 +126,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self._timeline_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self._timeline_slider.valueChanged.connect(self._on_timeline_changed)
         self._timeline_label = QtWidgets.QLabel("t=0.00s")
+        self._status_label = QtWidgets.QLabel("Needs simulation")
+        self._play_button = QtWidgets.QPushButton("Play")
+        self._play_button.clicked.connect(self._toggle_playback)
+        self._speed_label = QtWidgets.QLabel("Playback Speed")
+        self._speed_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self._speed_slider.setMinimum(5)
+        self._speed_slider.setMaximum(500)
+        self._speed_slider.setValue(25)
+        self._speed_slider.valueChanged.connect(self._on_speed_changed)
+        self._speed_value = QtWidgets.QLabel("0.25×")
         timeline_layout.addWidget(self._timeline_slider, stretch=1)
         timeline_layout.addWidget(self._timeline_label)
+        timeline_layout.addWidget(self._status_label)
+        timeline_layout.addWidget(self._speed_label)
+        timeline_layout.addWidget(self._speed_slider)
+        timeline_layout.addWidget(self._speed_value)
+        timeline_layout.addWidget(self._play_button)
         layout.addWidget(timeline_bar)
 
         self.setCentralWidget(container)
@@ -126,6 +165,9 @@ class MainWindow(QtWidgets.QMainWindow):
         add_body_action = QtGui.QAction("Add Body", self)
         add_body_action.triggered.connect(self._add_body)
 
+        self._run_sim_action = QtGui.QAction("Run Simulation", self)
+        self._run_sim_action.triggered.connect(self._run_simulation)
+
         export_action = QtGui.QAction("Export Video", self)
         export_action.triggered.connect(self._export_video)
 
@@ -133,6 +175,7 @@ class MainWindow(QtWidgets.QMainWindow):
         edit_menu.addAction(self._undo_action)
         edit_menu.addAction(self._redo_action)
         create_menu.addAction(add_body_action)
+        create_menu.addAction(self._run_sim_action)
 
     def _new_scenario(self) -> Scenario:
         return Scenario(version=1, settings=ScenarioSettings(dt=1.0, steps=100))
@@ -157,7 +200,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return f"body_{index}"
 
     def _refresh_ui(self, scenario: Scenario) -> None:
-        self._update_trajectory(scenario)
+        self._invalidate_simulation()
         self._outliner.clear()
         for particle in scenario.particles:
             item = QtWidgets.QListWidgetItem(f"Particle: {particle.name} ({particle.id})")
@@ -180,6 +223,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._compose_preview_positions(),
             camera_state,
         )
+        self._update_debug_panel()
 
     def _refresh_validation(self, scenario: Scenario) -> None:
         self._validation_list.clear()
@@ -257,46 +301,48 @@ class MainWindow(QtWidgets.QMainWindow):
                 return body
         return None
 
-    def _update_trajectory(self, scenario: Scenario) -> None:
-        config = scenario.settings.to_simulation_config(record_hashes=False)
-        self._trajectory = run_simulation(scenario.to_system_state(), scenario.events, config).trajectory
-        self._timeline_slider.setMinimum(0)
-        self._timeline_slider.setMaximum(config.steps)
-        self._timeline_slider.setSingleStep(1)
-        if self._scrub_time_s > config.steps * config.dt:
-            self._scrub_time_s = config.steps * config.dt
-        self._timeline_slider.blockSignals(True)
-        self._timeline_slider.setValue(int(round(self._scrub_time_s / config.dt)))
-        self._timeline_slider.blockSignals(False)
-        self._timeline_label.setText(f"t={self._scrub_time_s:0.2f}s")
-
-    def _update_scrub_positions(self) -> None:
-        if not self._trajectory:
-            self._scrub_positions = {}
-            return
-        positions = sample_trajectory(self._trajectory, self._scrub_time_s)
-        self._scrub_positions = {
-            body_id: tuple(positions[index])
-            for index, body_id in enumerate(self._trajectory.body_ids)
-        }
-
     def _compose_preview_positions(self) -> dict[str, tuple[float, float, float]]:
         merged = dict(self._scrub_positions)
         merged.update(self._preview_positions)
         return merged
 
+    def _current_sample_every(self) -> int:
+        sample_every = self._manager.scenario.metadata.get("sample_every", 1)
+        if not isinstance(sample_every, int) or sample_every < 1:
+            return 1
+        return sample_every
+
+    def _update_debug_panel(self) -> None:
+        dt = self._manager.scenario.settings.dt
+        sample_every = self._current_sample_every()
+        num_samples = len(self._trajectory.times) if self._trajectory else 0
+        idx = sample_index(self._scrub_time_s, dt, sample_every, num_samples)
+        body_ids = self._trajectory.body_ids if self._trajectory else []
+        body_id = self._selected_body_id or (body_ids[0] if body_ids else None)
+        scenario_pos = None
+        trajectory_pos = None
+        if body_id:
+            body = self._find_body(body_id)
+            if body:
+                scenario_pos = body.position
+            if self._trajectory and body_id in body_ids:
+                body_index = body_ids.index(body_id)
+                trajectory_pos = tuple(self._trajectory.positions[idx][body_index])
+        lines = [
+            f"Status: {status_label(self._needs_simulation, self._is_simulating, self._playback_timer.isActive())}",
+            f"time_s: {self._scrub_time_s:0.3f}",
+            f"idx: {idx}",
+            f"dt: {dt}, sample_every: {sample_every}, num_samples: {num_samples}",
+            f"body_order: {body_ids}",
+            f"selected: {body_id}",
+            f"scenario_pos: {scenario_pos}",
+            f"trajectory_pos: {trajectory_pos}",
+        ]
+        self._debug_label.setText("\n".join(lines))
+
     def _on_timeline_changed(self, value: int) -> None:
         dt = self._manager.scenario.settings.dt
-        self._scrub_time_s = value * dt
-        self._timeline_label.setText(f"t={self._scrub_time_s:0.2f}s")
-        self._update_scrub_positions()
-        camera_state = self._manager.scenario.camera_track.evaluate(self._scrub_time_s)
-        self._viewport.set_scene(
-            self._manager.scenario,
-            self._selected_body_id,
-            self._compose_preview_positions(),
-            camera_state,
-        )
+        self._set_time(value * dt, update_slider=False)
 
     def _refresh_keyframes(self, scenario: Scenario) -> None:
         self._keyframe_updating = True
@@ -401,6 +447,176 @@ class MainWindow(QtWidgets.QMainWindow):
             bitrate=preset.bitrate,
         )
         render_video(job)
+
+    def _set_time(self, time_s: float, update_slider: bool = True) -> None:
+        duration_s = self._manager.scenario.settings.dt * self._manager.scenario.settings.steps
+        self._scrub_time_s = max(0.0, min(time_s, duration_s))
+        self._playback_time_s = self._scrub_time_s
+        self._timeline_label.setText(f"t={self._scrub_time_s:0.2f}s")
+        if update_slider:
+            dt = self._manager.scenario.settings.dt
+            if dt > 0:
+                value = int(round(self._scrub_time_s / dt))
+                self._timeline_slider.blockSignals(True)
+                self._timeline_slider.setValue(value)
+                self._timeline_slider.blockSignals(False)
+        self._update_scrub_positions()
+        camera_state = self._manager.scenario.camera_track.evaluate(self._scrub_time_s)
+        self._viewport.set_scene(
+            self._manager.scenario,
+            self._selected_body_id,
+            self._compose_preview_positions(),
+            camera_state,
+        )
+        self._update_debug_panel()
+        self._update_status_label()
+
+    def _update_status_label(self) -> None:
+        label = status_label(
+            self._needs_simulation, self._is_simulating, self._playback_timer.isActive()
+        )
+        self._status_label.setText(label)
+
+    def _invalidate_simulation(self) -> None:
+        self._trajectory = None
+        self._needs_simulation = True
+        self._is_simulating = False
+        if self._playback_timer.isActive():
+            self._playback_timer.stop()
+            self._play_button.setText("Play")
+        steps = self._manager.scenario.settings.steps
+        dt = self._manager.scenario.settings.dt
+        self._timeline_slider.setMinimum(0)
+        self._timeline_slider.setMaximum(steps)
+        self._timeline_slider.setSingleStep(1)
+        duration_s = dt * steps
+        if self._scrub_time_s > duration_s:
+            self._scrub_time_s = duration_s
+            self._playback_time_s = duration_s
+        self._timeline_label.setText(f"t={self._scrub_time_s:0.2f}s")
+        self._update_status_label()
+
+    def _update_scrub_positions(self) -> None:
+        scenario_positions = {
+            body.id: body.position
+            for body in self._manager.scenario.particles + self._manager.scenario.rigid_bodies
+        }
+        trajectory_positions: dict[str, tuple[float, float, float]] = {}
+        if self._trajectory is not None:
+            sample_every = self._current_sample_every()
+            num_samples = len(self._trajectory.times)
+            idx = sample_index(
+                self._scrub_time_s, self._manager.scenario.settings.dt, sample_every, num_samples
+            )
+            positions = self._trajectory.positions[idx]
+            trajectory_positions = {
+                body_id: tuple(positions[index])
+                for index, body_id in enumerate(self._trajectory.body_ids)
+            }
+        self._scrub_positions = select_preview_positions(
+            self._trajectory is not None and not self._needs_simulation,
+            trajectory_positions,
+            scenario_positions,
+        )
+        self._update_debug_panel()
+
+    def _toggle_playback(self) -> None:
+        if self._playback_timer.isActive():
+            self._playback_timer.stop()
+            self._play_button.setText("Play")
+            self._update_status_label()
+            return
+        if should_run_simulation(self._needs_simulation, self._trajectory is not None):
+            self._auto_play_on_sim_complete = True
+            self._run_simulation()
+            return
+        self._play_button.setText("Pause")
+        self._playback_timer.start(33)
+        self._update_status_label()
+
+    def _on_playback_tick(self) -> None:
+        duration_s = self._manager.scenario.settings.dt * self._manager.scenario.settings.steps
+        dt_wall = self._playback_timer.interval() / 1000.0
+        self._playback_time_s = advance_playback_time(
+            self._playback_time_s, dt_wall, self._playback_speed, duration_s
+        )
+        if self._playback_time_s >= duration_s:
+            self._playback_timer.stop()
+            self._play_button.setText("Play")
+            self._update_status_label()
+        self._set_time(self._playback_time_s, update_slider=True)
+
+    def _run_simulation(self) -> None:
+        if self._is_simulating:
+            return
+        if self._playback_timer.isActive():
+            self._playback_timer.stop()
+            self._play_button.setText("Play")
+        self._run_sim_action.setEnabled(False)
+        thread = QtCore.QThread(self)
+        worker = _SimulationWorker(self._manager.scenario)
+        worker.moveToThread(thread)
+        worker.finished.connect(self._on_simulation_complete)
+        worker.finished.connect(thread.quit)
+        worker.error.connect(self._on_simulation_error)
+        worker.error.connect(thread.quit)
+        thread.finished.connect(self._on_simulation_thread_finished)
+        thread.started.connect(worker.run)
+        self._sim_thread = thread
+        self._sim_worker = worker
+        thread.start()
+        self._is_simulating = True
+        self._update_status_label()
+
+    def _on_simulation_complete(self, trajectory) -> None:
+        self._trajectory = trajectory
+        self._needs_simulation = False
+        self._is_simulating = False
+        self._update_status_label()
+        if self._auto_play_on_sim_complete:
+            self._auto_play_on_sim_complete = False
+            self._play_button.setText("Pause")
+            self._playback_timer.start(33)
+            self._update_status_label()
+        self._set_time(self._scrub_time_s, update_slider=True)
+
+    def _on_simulation_error(self, message: str) -> None:
+        QtWidgets.QMessageBox.warning(self, "Simulation Error", message)
+        self._is_simulating = False
+        self._invalidate_simulation()
+
+    def _on_simulation_thread_finished(self) -> None:
+        self._run_sim_action.setEnabled(True)
+        self._sim_thread = None
+        self._sim_worker = None
+        self._update_status_label()
+
+    def _toggle_developer_mode(self, state: int) -> None:
+        enabled = state == QtCore.Qt.Checked
+        self._debug_label.setVisible(enabled)
+
+    def _on_speed_changed(self, value: int) -> None:
+        self._playback_speed = max(0.05, min(value / 100.0, 5.0))
+        self._speed_value.setText(f"{self._playback_speed:0.2f}×")
+
+
+class _SimulationWorker(QtCore.QObject):
+    finished = QtCore.Signal(object)
+    error = QtCore.Signal(str)
+
+    def __init__(self, scenario: Scenario) -> None:
+        super().__init__()
+        self._scenario = scenario
+
+    def run(self) -> None:
+        try:
+            config = self._scenario.settings.to_simulation_config(record_hashes=False)
+            trajectory = run_simulation(
+                self._scenario.to_system_state(), self._scenario.events, config
+            ).trajectory
+            self.finished.emit(trajectory)
+        except Exception as exc:
+            self.error.emit(str(exc))
 
 
 def main() -> None:

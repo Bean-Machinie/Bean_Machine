@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "metadata": { "name": "Toy Two Body Orbit (Visible)" },
+  "settings": {
+    "dt": 0.01,
+    "steps": 20000,
+    "gravity_constant": 1.0,
+    "gravity_softening": 0.001,
+    "drag_coefficient": 0.0
+  },
+  "bodies": {
+    "particles": [
+      {
+        "id": "primary",
+        "name": "Primary",
+        "mass": 1000.0,
+        "position": [0.0, 0.0, 0.0],
+        "velocity": [0.0, 0.0, 0.0],
+        "radius": 0.08,
+        "thrust": [0.0, 0.0, 0.0]
+      },
+      {
+        "id": "orbiter",
+        "name": "Orbiter",
+        "mass": 1.0,
+        "position": [1.0, 0.0, 0.0],
+        "velocity": [0.0, 31.6, 0.0],
+        "radius": 0.03,
+        "thrust": [0.0, 0.0, 0.0]
+      }
+    ],
+    "rigid_bodies": []
+  },
+  "events": []
+}
