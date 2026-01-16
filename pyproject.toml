@@ -26,6 +26,7 @@ ui = [
 [project.scripts]
 physics-studio-sim = "physics_studio.cli.simulate:main"
 physics-studio-app = "physics_studio.app.main:main"
+physics-studio-render = "physics_studio.cli.render:main"
 
 [tool.pytest.ini_options]
 minversion = "7.0"

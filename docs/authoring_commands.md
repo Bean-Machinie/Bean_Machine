@@ -25,6 +25,9 @@ All authoring changes must flow through the command layer. The UI must not mutat
 - `AddEvent`
 - `DeleteEvent`
 - `UpdateEventProperty`
+- `AddCameraKeyframe`
+- `DeleteCameraKeyframe`
+- `UpdateCameraKeyframe`
 
 ## Validation
 

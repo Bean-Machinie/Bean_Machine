@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from typing import Callable, Protocol, Sequence
 
 from physics_studio.core.events.models import Event
-from physics_studio.scenario.models import Particle, RigidBody, Scenario
+from physics_studio.scenario.models import CameraKeyframe, Particle, RigidBody, Scenario
 
 
 class CommandError(ValueError):
@@ -25,6 +25,10 @@ def _copy_scenario(scenario: Scenario) -> Scenario:
     return Scenario(
         version=scenario.version,
         settings=scenario.settings,
+        camera_track=type(scenario.camera_track)(
+            keyframes=list(scenario.camera_track.keyframes),
+            default_fov_deg=scenario.camera_track.default_fov_deg,
+        ),
         particles=list(scenario.particles),
         rigid_bodies=list(scenario.rigid_bodies),
         events=list(scenario.events),
@@ -55,6 +59,12 @@ def _get_event_index(scenario: Scenario, event_id: str) -> tuple[int, Event]:
         if event.id == event_id:
             return (index, event)
     raise CommandError(f"Event not found: {event_id}")
+
+
+def _get_keyframe(scenario: Scenario, index: int) -> CameraKeyframe:
+    if index < 0 or index >= len(scenario.camera_track.keyframes):
+        raise CommandError(f"Camera keyframe index out of range: {index}")
+    return scenario.camera_track.keyframes[index]
 
 
 def _coerce_value(original: object, value: object) -> object:
@@ -361,4 +371,73 @@ class UpdateEventProperty:
         path = self.field_path.split(".")
         restored_event = _set_path_value(event, path, self._previous)
         updated.events[self._index] = restored_event
+        return updated
+
+
+@dataclass
+class AddCameraKeyframe:
+    keyframe: CameraKeyframe
+    description: str = "Add camera keyframe"
+    _index: int | None = None
+
+    def do(self, scenario: Scenario) -> Scenario:
+        updated = _copy_scenario(scenario)
+        updated.camera_track.keyframes.append(self.keyframe)
+        self._index = len(updated.camera_track.keyframes) - 1
+        return updated
+
+    def undo(self, scenario: Scenario) -> Scenario:
+        if self._index is None:
+            raise CommandError("AddCameraKeyframe has no index to remove")
+        updated = _copy_scenario(scenario)
+        if self._index < len(updated.camera_track.keyframes):
+            updated.camera_track.keyframes.pop(self._index)
+        return updated
+
+
+@dataclass
+class DeleteCameraKeyframe:
+    index: int
+    description: str = "Delete camera keyframe"
+    _snapshot: CameraKeyframe | None = None
+
+    def do(self, scenario: Scenario) -> Scenario:
+        self._snapshot = _get_keyframe(scenario, self.index)
+        updated = _copy_scenario(scenario)
+        updated.camera_track.keyframes.pop(self.index)
+        return updated
+
+    def undo(self, scenario: Scenario) -> Scenario:
+        if self._snapshot is None:
+            raise CommandError("DeleteCameraKeyframe has no snapshot to restore")
+        updated = _copy_scenario(scenario)
+        updated.camera_track.keyframes.insert(self.index, self._snapshot)
+        return updated
+
+
+@dataclass
+class UpdateCameraKeyframe:
+    index: int
+    field_path: str
+    value: object
+    description: str = "Update camera keyframe"
+    _previous: object | None = None
+
+    def do(self, scenario: Scenario) -> Scenario:
+        keyframe = _get_keyframe(scenario, self.index)
+        path = self.field_path.split(".")
+        self._previous = _get_path_value(keyframe, path)
+        updated_keyframe = _set_path_value(keyframe, path, self.value)
+        updated = _copy_scenario(scenario)
+        updated.camera_track.keyframes[self.index] = updated_keyframe
+        return updated
+
+    def undo(self, scenario: Scenario) -> Scenario:
+        if self._previous is None:
+            raise CommandError("UpdateCameraKeyframe has no previous value to restore")
+        updated = _copy_scenario(scenario)
+        keyframe = updated.camera_track.keyframes[self.index]
+        path = self.field_path.split(".")
+        updated_keyframe = _set_path_value(keyframe, path, self._previous)
+        updated.camera_track.keyframes[self.index] = updated_keyframe
         return updated

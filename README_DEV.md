@@ -27,6 +27,12 @@ python -m physics_studio.cli.simulate --help
 
 Trajectory output uses `trajectory_v1` (see `docs/trajectory_schema_v1.md`).
 
+Video export CLI:
+
+```powershell
+python -m physics_studio.cli.render --help
+```
+
 ## Run tests
 
 ```powershell

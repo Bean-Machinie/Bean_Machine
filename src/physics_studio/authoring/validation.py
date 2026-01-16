@@ -82,4 +82,28 @@ def validate_scenario(scenario: Scenario) -> list[ValidationIssue]:
                     )
                 )
 
+    last_time = None
+    for index, keyframe in enumerate(scenario.camera_track.keyframes):
+        if keyframe.time_s < 0:
+            issues.append(
+                ValidationIssue(
+                    "error", f"camera.keyframes.{index}.time_s", "Time must be >= 0"
+                )
+            )
+        if keyframe.fov_deg is not None and keyframe.fov_deg <= 0:
+            issues.append(
+                ValidationIssue(
+                    "error", f"camera.keyframes.{index}.fov_deg", "FOV must be > 0"
+                )
+            )
+        if last_time is not None and keyframe.time_s < last_time:
+            issues.append(
+                ValidationIssue(
+                    "warning",
+                    f"camera.keyframes.{index}.time_s",
+                    "Keyframes are not sorted by time",
+                )
+            )
+        last_time = keyframe.time_s
+
     return issues

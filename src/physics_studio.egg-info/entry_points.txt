@@ -1,3 +1,4 @@
 [console_scripts]
 physics-studio-app = physics_studio.app.main:main
+physics-studio-render = physics_studio.cli.render:main
 physics-studio-sim = physics_studio.cli.simulate:main
