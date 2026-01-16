@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Two Body Orbit"
+  },
+  "settings": {
+    "dt": 10.0,
+    "steps": 200,
+    "gravity_constant": 6.6743e-11,
+    "gravity_softening": 0.0,
+    "drag_coefficient": 0.0
+  },
+  "bodies": {
+    "particles": [
+      {
+        "id": "earth",
+        "name": "Earth",
+        "mass": 5.972e24,
+        "position": [0.0, 0.0, 0.0],
+        "velocity": [0.0, 0.0, 0.0],
+        "radius": 6371000.0,
+        "thrust": [0.0, 0.0, 0.0]
+      },
+      {
+        "id": "satellite",
+        "name": "Satellite",
+        "mass": 1200.0,
+        "position": [7000000.0, 0.0, 0.0],
+        "velocity": [0.0, 7500.0, 0.0],
+        "radius": 2.0,
+        "thrust": [0.0, 0.0, 0.0]
+      }
+    ],
+    "rigid_bodies": []
+  },
+  "events": []
+}

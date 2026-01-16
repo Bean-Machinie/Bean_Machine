@@ -1,0 +1,59 @@
+{
+  "version": 1,
+  "metadata": {
+    "name": "Thrust And Impulse Demo"
+  },
+  "settings": {
+    "dt": 1.0,
+    "steps": 120,
+    "gravity_constant": 6.6743e-11,
+    "gravity_softening": 0.0,
+    "drag_coefficient": 0.0
+  },
+  "bodies": {
+    "particles": [
+      {
+        "id": "planet",
+        "name": "Planet",
+        "mass": 5.0e24,
+        "position": [0.0, 0.0, 0.0],
+        "velocity": [0.0, 0.0, 0.0],
+        "radius": 6000000.0,
+        "thrust": [0.0, 0.0, 0.0]
+      },
+      {
+        "id": "probe",
+        "name": "Probe",
+        "mass": 800.0,
+        "position": [8000000.0, 0.0, 0.0],
+        "velocity": [0.0, 6800.0, 0.0],
+        "radius": 1.5,
+        "thrust": [0.0, 0.0, 0.0]
+      }
+    ],
+    "rigid_bodies": []
+  },
+  "events": [
+    {
+      "id": "kick-01",
+      "type": "impulse",
+      "time": 20.0,
+      "body_id": "probe",
+      "delta_v": [0.0, 50.0, 0.0]
+    },
+    {
+      "id": "burn-01",
+      "type": "thrust_change",
+      "time": 40.0,
+      "body_id": "probe",
+      "thrust": [0.0, 250.0, 0.0]
+    },
+    {
+      "id": "burn-02",
+      "type": "thrust_change",
+      "time": 80.0,
+      "body_id": "probe",
+      "thrust": [0.0, 0.0, 0.0]
+    }
+  ]
+}
